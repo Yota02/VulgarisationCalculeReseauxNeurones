@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Réseau de Neurones</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+
+        .network-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 80px;
+        }
+
+        /* SVG Layer for connections */
+        .connections-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .connection-line {
+            stroke: #cbd5e1;
+            stroke-width: 2;
+            transition: stroke 0.3s;
+        }
+        
+        .connection-line.active {
+            stroke: #3b82f6;
+            stroke-width: 3;
+        }
+
+        /* Signals (the moving dots) */
+        .signal {
+            fill: #3b82f6;
+            opacity: 0;
+        }
+
+        /* Neurons */
+        .layer {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 40px;
+            z-index: 10;
+            position: relative;
+        }
+
+        .neuron {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #cbd5e1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            position: relative;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .neuron.input-neuron { border-color: #3b82f6; color: #3b82f6; }
+        .neuron.hidden-neuron { border-color: #f59e0b; color: #f59e0b; }
+        .neuron.output-neuron { border-color: #10b981; color: #10b981; }
+
+        .neuron.active {
+            transform: scale(1.1);
+            background-color: #eff6ff;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+        }
+
+        /* Labels and Math Popups */
+        .layer-label {
+            position: absolute;
+            top: -40px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            width: 150px;
+            text-align: center;
+        }
+
+        .weight-label {
+            font-size: 10px;
+            fill: #94a3b8;
+            background: white;
+        }
+
+        .math-bubble {
+            position: absolute;
+            top: -55px;
+            background: #1e293b;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            pointer-events: none;
+            z-index: 20;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .math-bubble.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .math-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 4px 4px 0;
+            border-style: solid;
+            border-color: #1e293b transparent transparent transparent;
+        }
+
+        /* Controls */
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background-color: #2563eb;
+        }
+
+        button:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .log-box {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 0.95rem;
+            color: #334155;
+            min-height: 80px;
+            border-left: 4px solid #3b82f6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            line-height: 1.5;
+        }
+
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            max-width: 800px;
+            margin: 30px auto 0;
+            text-align: left;
+        }
+
+        .legend-item h4 {
+            font-weight: 700;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .dot.blue { background: #3b82f6; }
+        .dot.orange { background: #f59e0b; }
+        .dot.green { background: #10b981; }
+        .dot.gray { background: #cbd5e1; }
+
+    </style>
+</head>
+<body>
+
+    <div class="p-4 md:p-8">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-slate-800">Visualisation du Calcul Neuronal</h1>
+            <p class="text-slate-600">Voyage d'une donnée à travers les couches du réseau.</p>
+        </div>
+
+        <div class="network-container" id="network">
+            <!-- SVG Lines -->
+            <svg class="connections-layer" id="connectionsSvg">
+                <!-- Lines will be drawn by JS -->
+            </svg>
+
+            <!-- Layer 1: Input -->
+            <div class="layer" id="layer-input">
+                <div class="layer-label">Entrée</div>
+                <div class="neuron input-neuron" id="n-i-1" data-val="1">
+                    <span class="neuron-value">1.0</span>
+                    <div class="math-bubble" id="mb-i-1">Départ: 1.0</div>
+                </div>
+            </div>
+
+            <!-- Layer 2: Hidden -->
+            <div class="layer" id="layer-hidden">
+                <div class="layer-label">Couche Cachée</div>
+                <div class="neuron hidden-neuron" id="n-h-1" data-bias="0">
+                    <span class="neuron-value">?</span>
+                    <div class="math-bubble" id="mb-h-1"></div>
+                </div>
+                <div class="neuron hidden-neuron" id="n-h-2" data-bias="0">
+                    <span class="neuron-value">?</span>
+                    <div class="math-bubble" id="mb-h-2"></div>
+                </div>
+                <div class="neuron hidden-neuron" id="n-h-3" data-bias="0">
+                    <span class="neuron-value">?</span>
+                    <div class="math-bubble" id="mb-h-3"></div>
+                </div>
+            </div>
+
+            <!-- Layer 3: Output -->
+            <div class="layer" id="layer-output">
+                <div class="layer-label">Sortie</div>
+                <div class="neuron output-neuron" id="n-o-1">
+                    <span class="neuron-value">?</span>
+                    <div class="math-bubble" id="mb-o-1"></div>
+                </div>
+                <div class="neuron output-neuron" id="n-o-2">
+                    <span class="neuron-value">?</span>
+                    <div class="math-bubble" id="mb-o-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="runSimulation()" id="runBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Lancer le Calcul
+            </button>
+            <div class="log-box" id="logBox">
+                <strong>Prêt ?</strong> Cliquez sur "Lancer" pour voir comment le réseau "réfléchit".
+            </div>
+        </div>
+
+        <div class="legend-grid text-sm text-slate-600 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div class="legend-item">
+                <h4 class="text-blue-600"><span class="dot blue"></span> Neurone d'Entrée</h4>
+                <p>C'est l'information brute que l'IA reçoit (ex: un pixel d'image, une température, un mot).</p>
+            </div>
+            <div class="legend-item">
+                <h4 class="text-orange-500"><span class="dot orange"></span> Couche Cachée</h4>
+                <p>C'est ici que la "magie" opère. Ces neurones détectent des motifs intermédiaires en combinant l'entrée et les poids.</p>
+            </div>
+            <div class="legend-item">
+                <h4 class="text-emerald-500"><span class="dot green"></span> Neurones de Sortie</h4>
+                <p>La décision finale. Le neurone avec la plus grande valeur est la réponse choisie par l'IA.</p>
+            </div>
+            <div class="legend-item">
+                <h4 class="text-slate-500"><span class="dot gray"></span> Poids (Lignes)</h4>
+                <p>L'importance de la connexion. Un poids positif renforce le signal, un poids négatif le diminue.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const weights = {
+            'i-1_h-1': 0.5,
+            'i-1_h-2': -0.8,
+            'i-1_h-3': 1.2,
+            'h-1_o-1': 0.2, 'h-2_o-1': 0.5, 'h-3_o-1': -0.5,
+            'h-1_o-2': 0.9, 'h-2_o-2': -0.1, 'h-3_o-2': 0.4
+        };
+
+        const svg = document.getElementById('connectionsSvg');
+        const logBox = document.getElementById('logBox');
+        let isRunning = false;
+
+        function log(msg) {
+            logBox.innerHTML = msg; // Changed to innerHTML to allow bold text
+        }
+
+        // Helper to get center of element relative to container
+        function getCenter(el) {
+            const container = document.getElementById('network').getBoundingClientRect();
+            const rect = el.getBoundingClientRect();
+            return {
+                x: rect.left + rect.width / 2 - container.left,
+                y: rect.top + rect.height / 2 - container.top
+            };
+        }
+
+        // Initialize Lines and Weights
+        function drawConnections() {
+            svg.innerHTML = ''; // Clear
+            
+            // Define connections logic
+            const layers = [
+                ['n-i-1'],
+                ['n-h-1', 'n-h-2', 'n-h-3'],
+                ['n-o-1', 'n-o-2']
+            ];
+
+            // Draw lines between layers
+            for (let i = 0; i < layers.length - 1; i++) {
+                const currentLayer = layers[i];
+                const nextLayer = layers[i+1];
+
+                currentLayer.forEach(srcId => {
+                    nextLayer.forEach(tgtId => {
+                        const src = document.getElementById(srcId);
+                        const tgt = document.getElementById(tgtId);
+                        const p1 = getCenter(src);
+                        const p2 = getCenter(tgt);
+                        const wKey = `${srcId.replace('n-','')}_${tgtId.replace('n-','')}`;
+                        const weightVal = weights[wKey];
+
+                        // Create Group
+                        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+                        // Line
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("x1", p1.x);
+                        line.setAttribute("y1", p1.y);
+                        line.setAttribute("x2", p2.x);
+                        line.setAttribute("y2", p2.y);
+                        line.setAttribute("class", "connection-line");
+                        line.setAttribute("id", `line-${wKey}`);
+                        
+                        // Line thickness based on absolute weight
+                        line.style.strokeWidth = Math.max(1, Math.abs(weightVal) * 3);
+                        line.style.strokeOpacity = 0.4;
+
+                        // Dot for animation
+                        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        circle.setAttribute("r", "6"); // Slightly larger
+                        circle.setAttribute("cx", p1.x);
+                        circle.setAttribute("cy", p1.y);
+                        circle.setAttribute("class", "signal");
+                        circle.setAttribute("id", `sig-${wKey}`);
+
+                        // Weight Text
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.setAttribute("x", (p1.x + p2.x * 2) / 3); // Position closer to destination
+                        text.setAttribute("y", (p1.y + p2.y * 2) / 3);
+                        text.setAttribute("class", "weight-label");
+                        text.setAttribute("text-anchor", "middle");
+                        text.textContent = `x ${weightVal}`;
+
+                        g.appendChild(line);
+                        g.appendChild(text); // Text on top of line
+                        g.appendChild(circle); // Signal on top
+                        svg.appendChild(g);
+                    });
+                });
+            }
+        }
+
+        // Wait for layout to settle then draw
+        window.addEventListener('load', drawConnections);
+        window.addEventListener('resize', drawConnections);
+
+        // Simulation Logic
+        async function runSimulation() {
+            if (isRunning) return;
+            isRunning = true;
+            document.getElementById('runBtn').disabled = true;
+            
+            // Reset UI
+            document.querySelectorAll('.math-bubble').forEach(b => b.classList.remove('visible'));
+            document.querySelectorAll('.neuron').forEach(n => {
+                n.classList.remove('active');
+                if(!n.classList.contains('input-neuron')) {
+                    // Update only the value span, not the whole content (which kills the bubble)
+                    const valSpan = n.querySelector('.neuron-value');
+                    if(valSpan) valSpan.textContent = '?';
+                }
+            });
+
+            // 1. Input Activation
+            log("<strong>Étape 1 : Activation</strong><br>Le neurone d'entrée reçoit la donnée brute <strong>1.0</strong> (comme un signal électrique).");
+            const inputVal = 1.0;
+            const inputNode = document.getElementById('n-i-1');
+            inputNode.classList.add('active');
+            await wait(1500);
+
+            // 2. Transmission to Hidden
+            log("<strong>Étape 2 : Transmission pondérée</strong><br>Le signal voyage vers la couche cachée. Chaque connexion a un \"poids\" qui multiplie le signal.");
+            const hiddenIds = ['n-h-1', 'n-h-2', 'n-h-3'];
+            const hResults = {};
+
+            const anims1 = hiddenIds.map(hId => {
+                const wKey = `i-1_${hId.replace('n-','')}`;
+                return animateSignal('n-i-1', hId, wKey);
+            });
+            
+            await Promise.all(anims1);
+
+            // 3. Hidden Layer Calculation
+            log("<strong>Étape 3 : Calcul Intermédiaire</strong><br>Les neurones cachés reçoivent le résultat : <em>Valeur Entrée × Poids</em>. Remarquez comment le poids négatif (-0.8) change le signe du résultat !");
+            hiddenIds.forEach(hId => {
+                const wKey = `i-1_${hId.replace('n-','')}`;
+                const w = weights[wKey];
+                const res = parseFloat((inputVal * w).toFixed(2));
+                hResults[hId] = res;
+
+                const node = document.getElementById(hId);
+                node.classList.add('active');
+                // Target the span specifically
+                node.querySelector('.neuron-value').textContent = res;
+                
+                const bubble = document.getElementById(hId.replace('n-', 'mb-'));
+                if (bubble) {
+                    bubble.innerText = `1.0 × ${w} = ${res}`;
+                    bubble.classList.add('visible');
+                }
+            });
+            await wait(3000);
+
+            // 4. Transmission to Output
+            log("<strong>Étape 4 : Seconde Transmission</strong><br>Ces nouveaux résultats voyagent vers la sortie. Ils sont à nouveau modifiés par les poids de la seconde couche.");
+            const outputIds = ['n-o-1', 'n-o-2'];
+            const oResults = { 'n-o-1': 0, 'n-o-2': 0 };
+
+            const anims2 = [];
+            hiddenIds.forEach(hId => {
+                outputIds.forEach(oId => {
+                     const wKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                     anims2.push(animateSignal(hId, oId, wKey));
+                     
+                     // Pre-calc result
+                     oResults[oId] += hResults[hId] * weights[wKey];
+                });
+            });
+
+            await Promise.all(anims2);
+
+            // 5. Output Calculation
+            log("<strong>Étape 5 : Décision Finale (Somme)</strong><br>Chaque neurone de sortie additionne tous les signaux qu'il a reçus. Le neurone avec le plus grand chiffre gagne.");
+            outputIds.forEach(oId => {
+                const node = document.getElementById(oId);
+                const finalVal = oResults[oId].toFixed(2);
+                
+                node.classList.add('active');
+                // Target the span specifically
+                node.querySelector('.neuron-value').textContent = finalVal;
+
+                const bubble = document.getElementById(oId.replace('n-', 'mb-'));
+                if (bubble) {
+                    // Show sum calculation logic for clarity (simplified)
+                    bubble.innerText = `Somme totale = ${finalVal}`;
+                    bubble.classList.add('visible');
+                }
+            });
+
+            isRunning = false;
+            document.getElementById('runBtn').disabled = false;
+        }
+
+        function animateSignal(srcId, tgtId, wKey) {
+            return new Promise(resolve => {
+                const circle = document.getElementById(`sig-${wKey}`);
+                const line = document.getElementById(`line-${wKey}`);
+                const src = getCenter(document.getElementById(srcId));
+                const tgt = getCenter(document.getElementById(tgtId));
+
+                line.classList.add('active');
+                circle.style.opacity = 1;
+
+                const duration = 1500; // Slower animation for better reading
+                const startTime = performance.now();
+
+                function step(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+
+                    // Linear interpolation
+                    const x = src.x + (tgt.x - src.x) * progress;
+                    const y = src.y + (tgt.y - src.y) * progress;
+
+                    circle.setAttribute('cx', x);
+                    circle.setAttribute('cy', y);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(step);
+                    } else {
+                        circle.style.opacity = 0;
+                        line.classList.remove('active');
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        function wait(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Draw initially after a slight delay to ensure CSS layout is done
+        setTimeout(drawConnections, 100);
+    </script>
+</body>
+</html>
