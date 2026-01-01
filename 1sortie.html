@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Réseau Neurones (2 Entrées - 1 Sortie)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* --- Layout --- */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 10px;
+            position: relative;
+            padding-top: 10px;
+        }
+
+        .lang-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #cbd5e1;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            transition: background 0.2s;
+            z-index: 50;
+        }
+        .lang-btn:hover { background: #94a3b8; color: white; }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+            align-items: start;
+        }
+
+        @media (max-width: 1024px) {
+            .content-grid { grid-template-columns: 1fr; }
+            .log-panel { height: 300px !important; }
+        }
+
+        /* --- Left Panel Containers --- */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .network-wrapper {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 30px 10px;
+            width: 100%;
+            transition: z-index 0.3s;
+        }
+
+        .network-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 40px;
+        }
+
+        /* --- Right Panel (Logs) --- */
+        .right-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            height: 800px;
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 20px;
+        }
+
+        .log-panel-title {
+            font-weight: bold;
+            color: #475569;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* --- Log Box Style "Console" --- */
+        .log-box {
+            background: #1e293b;
+            color: #e2e8f0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            padding: 15px;
+            flex: 1;
+            overflow-y: auto;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+            line-height: 1.5;
+        }
+        
+        .log-box::-webkit-scrollbar { width: 8px; }
+        .log-box::-webkit-scrollbar-track { background: #0f172a; }
+        .log-box::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .log-box::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .log-entry {
+            margin-bottom: 16px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+        .log-entry:last-child { border-bottom: none; }
+        
+        .log-title {
+            color: #a78bfa;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .math-expr {
+            display: block;
+            margin-left: 15px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+            font-size: 0.8rem;
+        }
+        .math-hl-var { color: #facc15; font-weight: bold; }
+        .math-hl-res { color: #4ade80; font-weight: bold; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- SVG Layer --- */
+        .connections-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+        }
+
+        .connection-line {
+            stroke: #cbd5e1;
+            stroke-width: 2;
+            transition: stroke 0.2s, stroke-width 0.2s;
+            pointer-events: none;
+        }
+        
+        .connection-line.forward-active { stroke: #3b82f6; stroke-width: 4; }
+        .connection-line.backward-active { stroke: #ef4444; stroke-width: 4; }
+        
+        .connection-line.hover-line {
+            stroke: #8b5cf6 !important;
+            stroke-width: 5 !important;
+            stroke-opacity: 1 !important;
+        }
+
+        .signal { fill: #3b82f6; opacity: 0; pointer-events: none; }
+        .signal-back { fill: #ef4444; opacity: 0; pointer-events: none; }
+
+        /* --- Tooltip --- */
+        #connection-tooltip {
+            position: fixed;
+            top: 0; left: 0;
+            background: rgba(15, 23, 42, 0.95);
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            z-index: 2000;
+            display: none;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            border: 1px solid #334155;
+            backdrop-filter: blur(4px);
+            min-width: 160px;
+        }
+        .tooltip-val { font-family: monospace; color: #a5b4fc; }
+        .tooltip-res { font-family: monospace; color: #4ade80; font-weight: bold; }
+
+        /* --- Neurons --- */
+        .layer {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 50px;
+            z-index: 10;
+            position: relative;
+            flex: 1;
+            pointer-events: none;
+        }
+        .layer > * { pointer-events: auto; }
+
+        .neuron {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #cbd5e1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            position: relative;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            z-index: 20;
+            cursor: help;
+        }
+
+        .neuron:hover {
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2);
+            z-index: 50;
+        }
+
+        .neuron.input-neuron { border-color: #3b82f6; color: #3b82f6; }
+        .neuron.hidden-neuron { border-color: #f59e0b; color: #f59e0b; }
+        .neuron.output-neuron { border-color: #10b981; color: #10b981; }
+
+        .neuron.active { transform: scale(1.1); background-color: #eff6ff; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+        .neuron.learning { transform: scale(1.1); border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); }
+
+        .layer-label {
+            position: absolute;
+            top: -40px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            text-align: center;
+            width: 100%;
+        }
+
+        .weight-label {
+            font-size: 10px;
+            fill: #64748b;
+            background: white;
+            font-weight: bold;
+            transition: fill 0.2s;
+            pointer-events: none;
+        }
+        .weight-label.updated { fill: #ef4444; font-size: 12px; }
+
+        /* --- Targets Column --- */
+        .target-col {
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+            margin-left: 20px;
+            justify-content: center;
+        }
+        .target-box {
+            width: 50px;
+            height: 50px;
+            border: 2px dashed #94a3b8;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #475569;
+            font-weight: bold;
+            background: #f8fafc;
+            position: relative;
+        }
+        .target-label {
+            position: absolute;
+            right: -60px;
+            font-size: 0.75rem;
+            color: #64748b;
+            width: 50px;
+        }
+
+        /* --- Math Bubbles --- */
+        .math-bubble {
+            position: absolute;
+            top: -50px;
+            background: #1e293b;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            pointer-events: none;
+            z-index: 30;
+        }
+        .math-bubble.visible { opacity: 1; transform: translateY(0); }
+        .math-bubble.error-bubble { background: #ef4444; top: 55px; }
+
+        /* --- Chart --- */
+        .chart-container {
+            width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            height: 250px;
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        svg.chart { width: 100%; height: 100%; overflow: visible; }
+        .chart-line { fill: none; stroke: #ef4444; stroke-width: 2; vector-effect: non-scaling-stroke; }
+        .chart-grid { stroke: #e2e8f0; stroke-width: 1; }
+
+        /* --- Controls --- */
+        .controls-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+        }
+        @media (max-width: 768px) { .controls-panel { grid-template-columns: 1fr; } }
+
+        .control-box {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        button {
+            width: 100%;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 8px;
+        }
+        button:hover { background-color: #2563eb; }
+        button:disabled { background-color: #cbd5e1; cursor: not-allowed; }
+        button.secondary { background-color: #64748b; }
+        button.secondary:hover { background-color: #475569; }
+        button.step-btn { background-color: #8b5cf6; border-bottom: 4px solid #7c3aed; }
+        button.step-btn:hover { background-color: #7c3aed; }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px;
+            border-radius: 50%; background: #3b82f6; cursor: pointer; margin-top: -6px; 
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px;
+        }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
+        .stat-val { font-family: monospace; font-weight: bold; }
+        
+        .epoch-badge {
+            position: absolute;
+            top: 20px; left: 20px;
+            background: #f1f5f9;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #475569;
+        }
+        
+        .step-indicator {
+            position: absolute;
+            top: 20px; right: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #8b5cf6;
+            background: #f3e8ff;
+            padding: 5px 10px;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .step-indicator.visible { opacity: 1; }
+
+    </style>
+</head>
+<body>
+
+    <div id="connection-tooltip"></div>
+
+    <div class="main-container">
+        
+        <button onclick="toggleLanguage()" id="langBtn" class="lang-btn">🇬🇧 English</button>
+
+        <div class="header-section">
+            <h1 class="text-2xl font-bold text-slate-800" data-i18n="mainTitle">Réseau de Neurones (2 Entrées, 1 Sortie)</h1>
+            <p class="text-slate-600 text-sm mt-1" data-i18n="mainDesc">Survolez les connexions ou les neurones pour voir les calculs.</p>
+        </div>
+
+        <div class="content-grid">
+            
+            <div class="left-panel">
+                
+                <div class="network-wrapper" id="viz-container">
+                    <div class="epoch-badge" id="epochDisplay">Époque: 0</div>
+                    <div class="step-indicator" id="stepDisplay">Phase: --</div>
+                    
+                    <div class="network-container" id="network">
+                        <svg class="connections-layer" id="connectionsSvg"></svg>
+
+                        <div class="layer" id="layer-input">
+                            <div class="layer-label" data-i18n="layerInput">Entrées</div>
+                            <div class="neuron input-neuron" id="n-i-1">
+                                <span class="neuron-value">1.0</span>
+                            </div>
+                            <div class="neuron input-neuron" id="n-i-2">
+                                <span class="neuron-value">0.5</span>
+                            </div>
+                        </div>
+
+                        <div class="layer" id="layer-hidden">
+                            <div class="layer-label" data-i18n="layerHidden">Cachée</div>
+                            <div class="neuron hidden-neuron" id="n-h-1"><span class="neuron-value">?</span><div class="math-bubble" id="mb-h-1"></div></div>
+                            <div class="neuron hidden-neuron" id="n-h-2"><span class="neuron-value">?</span><div class="math-bubble" id="mb-h-2"></div></div>
+                            <div class="neuron hidden-neuron" id="n-h-3"><span class="neuron-value">?</span><div class="math-bubble" id="mb-h-3"></div></div>
+                        </div>
+
+                        <div class="layer" id="layer-output">
+                            <div class="layer-label" data-i18n="layerOutput">Sortie</div>
+                            <div class="neuron output-neuron" id="n-o-1">
+                                <span class="neuron-value">?</span>
+                                <div class="math-bubble" id="mb-o-1"></div>
+                                <div class="math-bubble error-bubble" id="eb-o-1"></div>
+                            </div>
+                        </div>
+
+                        <div class="target-col">
+                            <div class="target-box" id="t-1">
+                                1.0
+                                <span class="target-label" data-i18n="targetLabel">Cible</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="controls-panel">
+                    <div class="control-box" id="controls-area">
+                        <h3 class="font-bold text-slate-700 mb-4" data-i18n="controlsTitle">Commandes</h3>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-bold text-slate-600 mb-2" data-i18n="speedLabel">Vitesse d'animation</label>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs text-slate-500 font-bold" data-i18n="speedFast">RAPIDE</span>
+                                <input type="range" id="speedSlider" min="20" max="1000" step="20" value="200" 
+                                       oninput="updateSpeedLabel(this.value)"
+                                       class="flex-1">
+                                <span class="text-xs text-slate-500 font-bold" data-i18n="speedSlow">LENT</span>
+                            </div>
+                            <div class="text-center text-xs text-slate-400 mt-1"><span data-i18n="durationLabel">Durée :</span> <span id="speedVal">200</span>ms / <span data-i18n="stepLabel">étape</span></div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="nextStep()" id="btnStep" class="step-btn col-span-2" data-i18n="btnStep">
+                                ▶ Étape par Étape
+                            </button>
+                            <button onclick="trainOneEpoch()" id="btnTrain1" data-i18n="btnTrain1">1 Époque</button>
+                            <button onclick="trainMultiEpochs(20)" id="btnTrainMulti" data-i18n="btnTrainMulti">20 Époques</button>
+                        </div>
+                        <button onclick="resetNetwork()" class="secondary mt-2" data-i18n="btnReset">Réinitialiser</button>
+                    </div>
+
+                    <div class="control-box">
+                        <h3 class="font-bold text-slate-700 mb-4" data-i18n="statsTitle">Statistiques</h3>
+                        <div class="stat-row">
+                            <span data-i18n="lossLabel">Erreur Totale (Loss):</span>
+                            <span class="stat-val text-red-500" id="lossDisplay">--</span>
+                        </div>
+                        <div class="stat-row">
+                            <span data-i18n="lrLabel">Taux d'apprentissage:</span>
+                            <span class="stat-val text-blue-600">0.2</span>
+                        </div>
+                        <div class="mt-4 text-xs text-slate-500" data-i18n="statsDesc">
+                            Les neurones cachés calculent maintenant la somme pondérée de <strong>deux</strong> entrées.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-container" id="chart-area">
+                    <h3 class="text-sm font-bold text-slate-500 absolute top-2 left-4" data-i18n="chartTitle">Courbe d'apprentissage (Diminution de l'erreur)</h3>
+                    <svg class="chart" id="lossChart" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <line x1="0" y1="100" x2="100" y2="100" class="chart-grid"></line>
+                        <line x1="0" y1="0" x2="0" y2="100" class="chart-grid"></line>
+                        <polyline points="" class="chart-line" id="lossPolyline"></polyline>
+                    </svg>
+                </div>
+
+            </div>
+
+            <div class="right-panel" id="log-panel">
+                <div class="log-panel-title" data-i18n="logTitle">Journal des Calculs</div>
+                <div class="log-box" id="logBox">
+                    <div class="log-entry">
+                        <span class="log-title" data-i18n="logReady">Système Prêt.</span>
+                        <span class="math-expr" data-i18n="logReadyDesc">Architecture: 2 Entrées -> 3 Cachés -> 1 Sortie.</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- TRANSLATIONS ---
+        const TRANSLATIONS = {
+            fr: {
+                mainTitle: "Réseau de Neurones (2 Entrées, 1 Sortie)",
+                mainDesc: "Survolez les connexions ou les neurones pour voir les calculs.",
+                layerInput: "Entrées",
+                layerHidden: "Cachée",
+                layerOutput: "Sortie",
+                targetLabel: "Cible",
+                controlsTitle: "Commandes",
+                speedLabel: "Vitesse d'animation",
+                speedFast: "RAPIDE",
+                speedSlow: "LENT",
+                durationLabel: "Durée :",
+                stepLabel: "étape",
+                btnStep: "▶ Étape par Étape",
+                btnTrain1: "1 Époque",
+                btnTrainMulti: "20 Époques",
+                btnReset: "Réinitialiser",
+                statsTitle: "Statistiques",
+                lossLabel: "Erreur Totale (Loss):",
+                lrLabel: "Taux d'apprentissage:",
+                statsDesc: "Les neurones cachés calculent maintenant la somme pondérée de <strong>deux</strong> entrées.",
+                chartTitle: "Courbe d'apprentissage (Diminution de l'erreur)",
+                logTitle: "Journal des Calculs",
+                logReady: "Système Prêt.",
+                logReadyDesc: "Architecture: 2 Entrées -> 3 Cachés -> 1 Sortie.",
+                logPhase1: "Propagation: Entrées → Cachée",
+                logPhase2: "Propagation: Cachée → Sortie",
+                logPhase3: "Calcul de l'Erreur",
+                logPhase4: "Correction (Backprop): Sortie → Cachée",
+                logPhase5: "Correction (Backprop): Cachée → Entrées",
+                logCalcHidden: "Calcul Couche Cachée (Somme Pondérée)",
+                logCalcOut: "Calcul Couche Sortie (Somme Pondérée)",
+                logCalcErr: "Calcul de l'Erreur (Cible - Sortie)",
+                logUpdateOut: "Mise à jour Poids (Sortie → Cachée)",
+                logUpdateIn: "Mise à jour Poids (Cachée → Entrées)",
+                logEpochStart: "--- DÉBUT ÉPOQUE",
+                logEpochEnd: "Fin Époque",
+                logErrorTotal: "Erreur:",
+                tooltipConn: "Connexion",
+                tooltipVal: "Val:",
+                tooltipWeight: "Poids:",
+                tooltipRes: "Rés:",
+                tooltipInputNeuron: "Neurone d'Entrée",
+                tooltipConst: "Valeur constante:",
+                tooltipHiddenNeuron: "Neurone Caché",
+                tooltipFormulaHidden: "Formule: Σ(Entrée × Poids)",
+                tooltipOutputNeuron: "Neurone de Sortie",
+                tooltipSumCalc: "Calcul de la somme:",
+                tooltipCurrVal: "Valeur Actuelle:",
+                tooltipTarget: "Objectif (Cible):",
+                tooltipError: "Erreur:",
+                epochLabel: "Époque:",
+                targetReached: "🎯 OBJECTIF ATTEINT ! (Erreur < 0.01)"
+            },
+            en: {
+                mainTitle: "Neural Network (2 Inputs, 1 Output)",
+                mainDesc: "Hover over connections or neurons to see the calculations.",
+                layerInput: "Inputs",
+                layerHidden: "Hidden",
+                layerOutput: "Output",
+                targetLabel: "Target",
+                controlsTitle: "Controls",
+                speedLabel: "Animation Speed",
+                speedFast: "FAST",
+                speedSlow: "SLOW",
+                durationLabel: "Duration:",
+                stepLabel: "step",
+                btnStep: "▶ Step by Step",
+                btnTrain1: "1 Epoch",
+                btnTrainMulti: "20 Epochs",
+                btnReset: "Reset",
+                statsTitle: "Statistics",
+                lossLabel: "Total Loss (Error):",
+                lrLabel: "Learning Rate:",
+                statsDesc: "Hidden neurons now calculate the weighted sum of <strong>two</strong> inputs.",
+                chartTitle: "Learning Curve (Error Decrease)",
+                logTitle: "Calculation Log",
+                logReady: "System Ready.",
+                logReadyDesc: "Architecture: 2 Inputs -> 3 Hidden -> 1 Output.",
+                logPhase1: "Propagation: Inputs → Hidden",
+                logPhase2: "Propagation: Hidden → Output",
+                logPhase3: "Error Calculation",
+                logPhase4: "Correction (Backprop): Output → Hidden",
+                logPhase5: "Correction (Backprop): Hidden → Inputs",
+                logCalcHidden: "Calc Hidden Layer (Weighted Sum)",
+                logCalcOut: "Calc Output Layer (Weighted Sum)",
+                logCalcErr: "Error Calculation (Target - Output)",
+                logUpdateOut: "Weight Update (Output → Hidden)",
+                logUpdateIn: "Weight Update (Hidden → Inputs)",
+                logEpochStart: "--- START EPOCH",
+                logEpochEnd: "End Epoch",
+                logErrorTotal: "Error:",
+                tooltipConn: "Connection",
+                tooltipVal: "Val:",
+                tooltipWeight: "Weight:",
+                tooltipRes: "Res:",
+                tooltipInputNeuron: "Input Neuron",
+                tooltipConst: "Constant Value:",
+                tooltipHiddenNeuron: "Hidden Neuron",
+                tooltipFormulaHidden: "Formula: Σ(Input × Weight)",
+                tooltipOutputNeuron: "Output Neuron",
+                tooltipSumCalc: "Sum Calculation:",
+                tooltipCurrVal: "Current Value:",
+                tooltipTarget: "Goal (Target):",
+                tooltipError: "Error:",
+                epochLabel: "Epoch:",
+                targetReached: "🎯 GOAL REACHED! (Error < 0.01)"
+            }
+        };
+
+        let currentLang = 'fr';
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'fr' ? 'en' : 'fr';
+            document.getElementById('langBtn').textContent = currentLang === 'fr' ? '🇬🇧 English' : '🇫🇷 Français';
+            applyLanguage();
+        }
+
+        function t(key) { return TRANSLATIONS[currentLang][key] || key; }
+
+        function applyLanguage() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (TRANSLATIONS[currentLang][key]) {
+                    el.innerHTML = TRANSLATIONS[currentLang][key];
+                }
+            });
+            document.getElementById('epochDisplay').textContent = `${t('epochLabel')} ${epoch}`;
+        }
+
+        // --- Configuration du Réseau (MODIFIED) ---
+        const TARGETS = { 'n-o-1': 1.0 }; // Seule cible restante
+        const LEARNING_RATE = 0.2;
+        
+        // Deux Entrées
+        const INPUTS = { 'n-i-1': 1.0, 'n-i-2': 0.5 };
+        const inputIds = ['n-i-1', 'n-i-2'];
+        const hiddenIds = ['n-h-1', 'n-h-2', 'n-h-3'];
+        const outputIds = ['n-o-1'];
+        
+        // Poids initiaux (6 entrées->cachés, 3 cachés->sortie)
+        let weights = {
+            // De Entrée 1 vers cachés
+            'i-1_h-1': 0.5, 'i-1_h-2': -0.8, 'i-1_h-3': 1.2,
+            // De Entrée 2 vers cachés (Nouveaux poids)
+            'i-2_h-1': -0.3, 'i-2_h-2': 0.6, 'i-2_h-3': -0.9,
+            
+            // De cachés vers sortie unique
+            'h-1_o-1': 0.2, 'h-2_o-1': 0.5, 'h-3_o-1': -0.5
+        };
+        const initialWeights = {...weights};
+
+        // --- Variables d'état ---
+        let epoch = 0;
+        let isRunning = false;
+        let lossHistory = [];
+        let stepPhase = 0; 
+        let epochData = {
+            hResults: {},
+            oResults: {},
+            outputErrors: {},
+            totalError: 0
+        };
+        
+        // --- Références DOM ---
+        const svg = document.getElementById('connectionsSvg');
+        const logBox = document.getElementById('logBox');
+        const lossDisplay = document.getElementById('lossDisplay');
+        const epochDisplay = document.getElementById('epochDisplay');
+        const stepDisplay = document.getElementById('stepDisplay');
+        const lossPolyline = document.getElementById('lossPolyline');
+        const slider = document.getElementById('speedSlider');
+        const speedValLabel = document.getElementById('speedVal');
+        const tooltip = document.getElementById('connection-tooltip');
+
+        // --- Helpers ---
+        function log(title, detailsHtml = null) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            let html = `<span class="log-title">> ${title}</span>`;
+            if (detailsHtml) html += detailsHtml;
+            entry.innerHTML = html;
+            logBox.prepend(entry);
+            if(logBox.children.length > 50) logBox.lastElementChild.remove();
+        }
+
+        function updateSpeedLabel(val) { speedValLabel.textContent = val; }
+        function getSpeed() { return parseInt(slider.value); }
+
+        function getCenter(elId) {
+            const el = document.getElementById(elId);
+            const container = document.getElementById('network').getBoundingClientRect();
+            const rect = el.getBoundingClientRect();
+            return {
+                x: rect.left + rect.width / 2 - container.left,
+                y: rect.top + rect.height / 2 - container.top
+            };
+        }
+
+        function updateChart() {
+            if (lossHistory.length < 2) return;
+            const maxLoss = Math.max(...lossHistory, 1.0);
+            const width = 100;
+            const height = 100;
+            let points = "";
+            lossHistory.forEach((loss, index) => {
+                const x = (index / (lossHistory.length - 1)) * width;
+                const y = height - ((loss / maxLoss) * height);
+                points += `${x},${y} `;
+            });
+            lossPolyline.setAttribute('points', points);
+        }
+
+        function setStepLabel(text) {
+            stepDisplay.textContent = text;
+            stepDisplay.classList.add('visible');
+        }
+        
+        // --- Tooltip & Calculation Logic ---
+        function moveTooltip(e) {
+            const x = e.clientX + 15;
+            const y = e.clientY + 15;
+            tooltip.style.transform = `translate(${x}px, ${y}px)`;
+        }
+
+        function calculateHiddenVal(hId) {
+            let sum = 0;
+            inputIds.forEach(iId => {
+                const wKey = `${iId.replace('n-','')}_${hId.replace('n-','')}`;
+                sum += INPUTS[iId] * weights[wKey];
+            });
+            return sum;
+        }
+
+        function calculateOutputVal(oId) {
+             let sum = 0;
+             hiddenIds.forEach(hId => {
+                 const hVal = calculateHiddenVal(hId);
+                 const wKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                 sum += hVal * weights[wKey];
+             });
+             return sum;
+        }
+
+        function setupNeuronHover() {
+            document.querySelectorAll('.neuron').forEach(neuron => {
+                neuron.addEventListener('mouseenter', (e) => {
+                    const id = neuron.id;
+                    let title = "Neurone";
+                    let content = "";
+
+                    if (id.includes('n-i')) {
+                        title = t('tooltipInputNeuron');
+                        content = `<div>${t('tooltipConst')} <span class="tooltip-res">${INPUTS[id].toFixed(1)}</span></div>`;
+                    } 
+                    else if (id.includes('n-h')) {
+                        title = t('tooltipHiddenNeuron');
+                        let details = [];
+                        let total = 0;
+                        inputIds.forEach(iId => {
+                             const wKey = `${iId.replace('n-','')}_${id.replace('n-','')}`;
+                             const w = weights[wKey];
+                             const val = INPUTS[iId] * w;
+                             total += val;
+                             details.push(`Input(${INPUTS[iId]}) × ${w.toFixed(2)}`);
+                        });
+                        
+                        content = `
+                            <div class="text-xs text-slate-400 mb-1">${t('tooltipFormulaHidden')}</div>
+                            <div class="text-xs text-slate-300 font-mono mb-2" style="max-width:200px; white-space:normal; line-height:1.4;">${details.join(' + ')}</div>
+                            <div class="mt-1 pt-1 border-t border-slate-700">${t('tooltipRes')} <span class="tooltip-res">${total.toFixed(2)}</span></div>
+                        `;
+                    } 
+                    else if (id.includes('n-o')) {
+                        title = t('tooltipOutputNeuron');
+                        const val = calculateOutputVal(id);
+                        const target = TARGETS[id];
+                        const error = target - val;
+                        
+                        let details = [];
+                        hiddenIds.forEach(hId => {
+                            const hVal = calculateHiddenVal(hId);
+                            const wKey = `${hId.replace('n-','')}_${id.replace('n-','')}`;
+                            const w = weights[wKey];
+                            details.push(`(${hVal.toFixed(2)}×${w.toFixed(2)})`);
+                        });
+                        
+                        content = `
+                            <div class="text-xs text-slate-400 mb-1">${t('tooltipSumCalc')}</div>
+                            <div class="text-xs text-slate-300 font-mono mb-2" style="max-width:200px; white-space:normal; line-height:1.4;">${details.join(' + ')}</div>
+                            <div>${t('tooltipCurrVal')} <span class="tooltip-res">${val.toFixed(2)}</span></div>
+                            <div class="mt-1 pt-1 border-t border-slate-700">${t('tooltipTarget')} <span class="text-blue-400 font-bold">${target.toFixed(1)}</span></div>
+                            <div>${t('tooltipError')} <span class="text-red-400 font-bold">${error.toFixed(2)}</span></div>
+                        `;
+                    }
+
+                    tooltip.innerHTML = `
+                        <div class="font-bold border-b border-slate-600 pb-1 mb-1 text-slate-300">${title} <span class="text-xs text-slate-500">(${id})</span></div>
+                        ${content}
+                    `;
+                    tooltip.style.display = 'block';
+                    moveTooltip(e);
+                });
+
+                neuron.addEventListener('mousemove', moveTooltip);
+                neuron.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+            });
+        }
+
+        // --- Dessin ---
+        function drawConnections(highlightUpdated = false) {
+            svg.innerHTML = '';
+            // Define layers specifically
+            const layers = [inputIds, hiddenIds, outputIds];
+
+            for (let i = 0; i < layers.length - 1; i++) {
+                const currentLayer = layers[i];
+                const nextLayer = layers[i+1];
+
+                currentLayer.forEach(srcId => {
+                    nextLayer.forEach(tgtId => {
+                        const wKey = `${srcId.replace('n-','')}_${tgtId.replace('n-','')}`;
+                        const weightVal = weights[wKey];
+                        const p1 = getCenter(srcId);
+                        const p2 = getCenter(tgtId);
+
+                        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                        g.style.cursor = 'pointer';
+
+                        // Invisible hit line for easier hovering
+                        const hitLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        hitLine.setAttribute("x1", p1.x); hitLine.setAttribute("y1", p1.y);
+                        hitLine.setAttribute("x2", p2.x); hitLine.setAttribute("y2", p2.y);
+                        hitLine.setAttribute("stroke", "transparent");
+                        hitLine.setAttribute("stroke-width", "20");
+
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
+                        line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+                        line.setAttribute("class", "connection-line");
+                        line.setAttribute("id", `line-${wKey}`);
+                        line.style.strokeWidth = Math.max(1, Math.abs(weightVal) * 3);
+                        line.style.strokeOpacity = 0.3;
+                        if(weightVal < 0) line.style.stroke = "#94a3b8"; 
+
+                        // Signals
+                        const sigF = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        sigF.setAttribute("r", "4"); sigF.setAttribute("cx", p1.x); sigF.setAttribute("cy", p1.y);
+                        sigF.setAttribute("class", "signal"); sigF.setAttribute("id", `sig-f-${wKey}`);
+
+                        const sigB = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        sigB.setAttribute("r", "4"); sigB.setAttribute("cx", p2.x); sigB.setAttribute("cy", p2.y);
+                        sigB.setAttribute("class", "signal-back"); sigB.setAttribute("id", `sig-b-${wKey}`);
+
+                        // Weight label
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.setAttribute("x", (p1.x * 0.3 + p2.x * 0.7)); 
+                        text.setAttribute("y", (p1.y * 0.3 + p2.y * 0.7));
+                        text.setAttribute("class", "weight-label");
+                        text.setAttribute("text-anchor", "middle");
+                        text.textContent = weightVal.toFixed(2);
+                        if(highlightUpdated) text.classList.add('updated');
+
+                        // Hover Logic
+                        g.addEventListener('mouseenter', (e) => {
+                            line.classList.add('hover-line');
+                            let inputVal = 0;
+                            let srcName = "";
+                            
+                            if (inputIds.includes(srcId)) {
+                                inputVal = INPUTS[srcId];
+                                srcName = t('layerInput');
+                            } else {
+                                // From hidden
+                                inputVal = calculateHiddenVal(srcId);
+                                srcName = t('layerHidden');
+                            }
+                            
+                            const result = inputVal * weightVal;
+                            
+                            tooltip.innerHTML = `
+                                <div class="font-bold border-b border-slate-600 pb-1 mb-1 text-slate-300">${t('tooltipConn')}</div>
+                                <div class="text-xs text-slate-400 mb-1">${srcName} → Dest</div>
+                                <div>${t('tooltipVal')} <span class="tooltip-val">${inputVal.toFixed(2)}</span></div>
+                                <div>${t('tooltipWeight')} <span class="tooltip-val">${weightVal.toFixed(2)}</span></div>
+                                <div class="mt-1 pt-1 border-t border-slate-700">${t('tooltipRes')} <span class="tooltip-res">${result.toFixed(2)}</span></div>
+                            `;
+                            tooltip.style.display = 'block';
+                            moveTooltip(e);
+                        });
+                        
+                        g.addEventListener('mousemove', (e) => moveTooltip(e));
+                        g.addEventListener('mouseleave', () => {
+                            line.classList.remove('hover-line');
+                            tooltip.style.display = 'none';
+                        });
+
+                        g.appendChild(hitLine); 
+                        g.appendChild(line);
+                        g.appendChild(text);
+                        g.appendChild(sigF);
+                        g.appendChild(sigB);
+                        svg.appendChild(g);
+                    });
+                });
+            }
+        }
+
+        function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        async function animatePath(objId, lineId, startId, endId, colorClass, duration) {
+            return new Promise(resolve => {
+                const circle = document.getElementById(objId);
+                const line = document.getElementById(lineId);
+                const pStart = getCenter(startId);
+                const pEnd = getCenter(endId);
+
+                line.classList.add(colorClass);
+                circle.style.opacity = 1;
+
+                const startTime = performance.now();
+                function step(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const x = pStart.x + (pEnd.x - pStart.x) * progress;
+                    const y = pStart.y + (pEnd.y - pStart.y) * progress;
+                    circle.setAttribute('cx', x);
+                    circle.setAttribute('cy', y);
+
+                    if (progress < 1) requestAnimationFrame(step);
+                    else {
+                        circle.style.opacity = 0;
+                        line.classList.remove(colorClass);
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        // --- PHASES DU RÉSEAU (UPDATED FOR MULTIPLE INPUTS) ---
+
+        async function phase1_InputToHidden(speed, forceLog = false) {
+            setStepLabel(`1. ${t('logPhase1')}`);
+            inputIds.forEach(id => document.getElementById(id).classList.add('active'));
+            
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            // Animate from ALL inputs to ALL hidden
+            const anims = [];
+            hiddenIds.forEach(hId => {
+                let hSum = 0;
+                let hLogParts = [];
+                inputIds.forEach(iId => {
+                    const wKey = `${iId.replace('n-','')}_${hId.replace('n-','')}`;
+                    anims.push(animatePath(`sig-f-${wKey}`, `line-${wKey}`, iId, hId, 'forward-active', speed));
+                    const w = weights[wKey];
+                    const val = INPUTS[iId] * w;
+                    hSum += val;
+                    hLogParts.push(`(${INPUTS[iId]}×${w.toFixed(2)})`);
+                });
+                
+                epochData.hResults[hId] = hSum;
+                if(detailedLog) {
+                    logDetails += `<div class="math-expr">${hId}: ${hLogParts.join(' + ')} = <span class="math-hl-res">${hSum.toFixed(2)}</span></div>`;
+                }
+            });
+
+            await Promise.all(anims);
+
+            hiddenIds.forEach(hId => {
+                document.getElementById(hId).querySelector('.neuron-value').textContent = epochData.hResults[hId].toFixed(2);
+                document.getElementById(hId).classList.add('active');
+            });
+            
+            if(detailedLog) log(t('logCalcHidden'), logDetails);
+        }
+
+        async function phase2_HiddenToOutput(speed, forceLog = false) {
+            setStepLabel(`2. ${t('logPhase2')}`);
+            epochData.oResults = { 'n-o-1': 0 };
+            
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            const anims = [];
+            hiddenIds.forEach(hId => {
+                outputIds.forEach(oId => {
+                    const wKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                    anims.push(animatePath(`sig-f-${wKey}`, `line-${wKey}`, hId, oId, 'forward-active', speed));
+                    epochData.oResults[oId] += epochData.hResults[hId] * weights[wKey];
+                });
+            });
+            await Promise.all(anims);
+
+            outputIds.forEach(oId => {
+                const val = epochData.oResults[oId];
+                const node = document.getElementById(oId);
+                node.classList.add('active');
+                node.querySelector('.neuron-value').textContent = val.toFixed(2);
+                
+                if(detailedLog) {
+                    logDetails += `<span class="math-expr">${oId}: Σ(hidden × w) = <span class="math-hl-res">${val.toFixed(2)}</span></span>`;
+                }
+            });
+            if(detailedLog) log(t('logCalcOut'), logDetails);
+        }
+
+        async function phase3_CalcError(speed, forceLog = false) {
+            setStepLabel(`3. ${t('logPhase3')}`);
+            epochData.totalError = 0;
+            epochData.outputErrors = {};
+
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            outputIds.forEach(oId => {
+                const val = epochData.oResults[oId];
+                const target = TARGETS[oId];
+                const error = target - val;
+                epochData.outputErrors[oId] = error;
+                epochData.totalError += Math.abs(error);
+
+                const errBubble = document.getElementById(oId.replace('n-', 'eb-'));
+                errBubble.textContent = `Err: ${error.toFixed(2)}`;
+                errBubble.classList.add('visible');
+
+                if(detailedLog) {
+                    logDetails += `<span class="math-expr">${oId}: ${t('targetLabel')}(${target}) - Out(${val.toFixed(2)}) = <span class="math-hl-var">${error.toFixed(2)}</span></span>`;
+                }
+            });
+
+            lossDisplay.textContent = epochData.totalError.toFixed(4);
+            lossHistory.push(epochData.totalError);
+            updateChart();
+            
+            if(detailedLog) log(t('logCalcErr'), logDetails);
+            if(speed > 100) await wait(speed); 
+        }
+
+        async function phase4_BackOutToHidden(speed, forceLog = false) {
+            setStepLabel(`4. ${t('logPhase4')}`);
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            const anims = [];
+            hiddenIds.forEach(hId => {
+                outputIds.forEach(oId => {
+                    const wKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                    anims.push(animatePath(`sig-b-${wKey}`, `line-${wKey}`, oId, hId, 'backward-active', speed));
+                    
+                    const delta = epochData.outputErrors[oId] * epochData.hResults[hId] * LEARNING_RATE;
+                    weights[wKey] += delta;
+                    
+                    if(detailedLog) { 
+                         logDetails += `<div class="math-expr">Δw (${hId}→${oId}) = ${delta.toFixed(3)}</div>`;
+                    }
+                });
+            });
+            if(detailedLog) log(t('logUpdateOut'), logDetails);
+            
+            outputIds.forEach(id => document.getElementById(id).classList.add('learning'));
+            await Promise.all(anims);
+        }
+
+        async function phase5_BackHiddenToInput(speed, forceLog = false) {
+            setStepLabel(`5. ${t('logPhase5')}`);
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            const anims = [];
+            
+            // Loop through inputs and hidden to update input weights
+            inputIds.forEach(iId => {
+                hiddenIds.forEach(hId => {
+                    let hiddenError = 0;
+                    outputIds.forEach(oId => {
+                        const wOutKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                        hiddenError += epochData.outputErrors[oId] * weights[wOutKey];
+                    });
+
+                    const wInKey = `${iId.replace('n-','')}_${hId.replace('n-','')}`;
+                    anims.push(animatePath(`sig-b-${wInKey}`, `line-${wInKey}`, hId, iId, 'backward-active', speed));
+                    
+                    const delta = hiddenError * INPUTS[iId] * LEARNING_RATE;
+                    weights[wInKey] += delta;
+                    document.getElementById(hId).classList.add('learning');
+                    
+                    if(detailedLog) {
+                        logDetails += `<div class="math-expr">Δw (${iId}→${hId}) = ${delta.toFixed(3)}</div>`;
+                    }
+                });
+            });
+            
+            if(detailedLog) log(t('logUpdateIn'), logDetails);
+
+            await Promise.all(anims);
+
+            epoch++;
+            epochDisplay.textContent = `${t('epochLabel')} ${epoch}`;
+            drawConnections(true);
+            
+            document.querySelectorAll('.neuron').forEach(n => n.classList.remove('active', 'learning'));
+            document.querySelectorAll('.math-bubble').forEach(b => b.classList.remove('visible'));
+            setStepLabel(t('logEpochEnd'));
+            if(detailedLog) log(`${t('logEpochEnd')} ${epoch}. ${t('logErrorTotal')} ${epochData.totalError.toFixed(4)}`, "<hr class='border-slate-600 my-2'/>");
+        }
+
+        async function runEpoch(speed, forceLog = false) {
+            stepPhase = 0;
+            const detailedLog = forceLog || speed > 200;
+            if(detailedLog) log(`${t('logEpochStart')} ${epoch+1} ---`);
+            
+            await phase1_InputToHidden(speed, forceLog);
+            await phase2_HiddenToOutput(speed, forceLog);
+            await phase3_CalcError(speed, forceLog);
+            await phase4_BackOutToHidden(speed, forceLog);
+            await phase5_BackHiddenToInput(speed, forceLog);
+            
+            stepDisplay.classList.remove('visible');
+        }
+
+        async function nextStep() {
+            if (isRunning) return;
+            isRunning = true;
+            toggleButtons(true);
+            
+            const speed = getSpeed();
+            const forceLog = true;
+            
+            switch(stepPhase) {
+                case 0:
+                    log(`${t('logEpochStart')} ${epoch+1} ---`);
+                    await phase1_InputToHidden(speed, forceLog);
+                    stepPhase = 1;
+                    break;
+                case 1:
+                    await phase2_HiddenToOutput(speed, forceLog);
+                    stepPhase = 2;
+                    break;
+                case 2:
+                    await phase3_CalcError(speed, forceLog);
+                    stepPhase = 3;
+                    break;
+                case 3:
+                    await phase4_BackOutToHidden(speed, forceLog);
+                    stepPhase = 4;
+                    break;
+                case 4:
+                    await phase5_BackHiddenToInput(speed, forceLog);
+                    stepPhase = 0;
+                    break;
+            }
+            
+            isRunning = false;
+            toggleButtons(false);
+        }
+
+        async function trainOneEpoch() {
+            if (isRunning) return;
+            isRunning = true;
+            toggleButtons(true);
+            await runEpoch(getSpeed());
+            isRunning = false;
+            toggleButtons(false);
+        }
+
+        async function trainMultiEpochs(steps) {
+            if (isRunning) return;
+            isRunning = true;
+            toggleButtons(true);
+            
+            for(let i=0; i<steps; i++) {
+                await runEpoch(getSpeed());
+                const lastLoss = lossHistory[lossHistory.length - 1];
+                if (lastLoss < 0.01) {
+                    log(`<span style="color:#4ade80; font-weight:bold;">${t('targetReached')}</span>`);
+                    break;
+                }
+            }
+
+            isRunning = false;
+            toggleButtons(false);
+        }
+
+        function resetNetwork() {
+            weights = {...initialWeights};
+            epoch = 0;
+            stepPhase = 0;
+            lossHistory = [];
+            lossPolyline.setAttribute('points', '');
+            epochDisplay.textContent = `${t('epochLabel')} 0`;
+            lossDisplay.textContent = '--';
+            stepDisplay.classList.remove('visible');
+            logBox.innerHTML = `<div class="log-entry"><span class="log-title">${t('btnReset')}.</span></div>`;
+            drawConnections();
+            document.querySelectorAll('.neuron-value').forEach(s => s.textContent = '?');
+            // Reset input values
+            document.getElementById('n-i-1').querySelector('.neuron-value').textContent = INPUTS['n-i-1'];
+            document.getElementById('n-i-2').querySelector('.neuron-value').textContent = INPUTS['n-i-2'];
+            
+            document.querySelectorAll('.math-bubble').forEach(b => b.classList.remove('visible'));
+            document.querySelectorAll('.neuron').forEach(n => n.classList.remove('active', 'learning'));
+        }
+
+        function toggleButtons(disabled) {
+            document.getElementById('btnTrain1').disabled = disabled;
+            document.getElementById('btnTrainMulti').disabled = disabled;
+            document.getElementById('btnStep').disabled = disabled;
+        }
+
+        window.addEventListener('load', () => {
+            applyLanguage();
+            drawConnections();
+            setupNeuronHover();
+        });
+        window.addEventListener('resize', () => drawConnections());
+
+    </script>
+</body>
+</html>

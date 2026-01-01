@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entraînement Réseau de Neurones</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* --- Layout --- */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative; /* Ajouté pour le positionnement absolu du bouton */
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 10px;
+            position: relative;
+            padding-top: 10px; /* Un peu d'espace pour éviter le chevauchement sur mobile */
+        }
+
+        .lang-btn {
+            position: absolute;
+            top: 20px; /* Aligné avec le padding du container */
+            right: 20px;
+            background: #cbd5e1;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            transition: background 0.2s;
+            z-index: 50;
+        }
+        .lang-btn:hover { background: #94a3b8; color: white; }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px; /* Colonne principale + Colonne logs */
+            gap: 20px;
+            align-items: start;
+        }
+
+        @media (max-width: 1024px) {
+            .content-grid {
+                grid-template-columns: 1fr; /* Stack on smaller screens */
+            }
+            .log-panel {
+                height: 300px !important;
+            }
+            /* Suppression du repositionnement du bouton lang-btn ici pour qu'il reste en haut à droite */
+        }
+
+        /* --- Left Panel Containers --- */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .network-wrapper {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 30px 10px;
+            width: 100%;
+            transition: z-index 0.3s; /* For guide */
+        }
+
+        .network-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 40px;
+        }
+
+        /* --- Right Panel (Logs) --- */
+        .right-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            height: 800px; /* Hauteur fixe pour aligner avec le contenu gauche */
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 20px;
+        }
+
+        .log-panel-title {
+            font-weight: bold;
+            color: #475569;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* --- Log Box Style "Console" --- */
+        .log-box {
+            background: #1e293b; /* Dark slate */
+            color: #e2e8f0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            padding: 15px;
+            flex: 1; /* Prend tout l'espace restant */
+            overflow-y: auto;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+            line-height: 1.5;
+        }
+        
+        /* Custom Scrollbar for log box */
+        .log-box::-webkit-scrollbar { width: 8px; }
+        .log-box::-webkit-scrollbar-track { background: #0f172a; }
+        .log-box::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .log-box::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .log-entry {
+            margin-bottom: 16px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+        .log-entry:last-child { border-bottom: none; }
+        
+        .log-title {
+            color: #a78bfa; /* Violet clair */
+            font-weight: bold;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .math-expr {
+            display: block;
+            margin-left: 15px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+            font-size: 0.8rem;
+        }
+        .math-hl-var { color: #facc15; font-weight: bold; } /* Yellow for variables */
+        .math-hl-res { color: #4ade80; font-weight: bold; } /* Green for results */
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- SVG Layer --- */
+        .connections-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            /* pointer-events: none removed to allow hovering on groups */
+        }
+
+        .connection-line {
+            stroke: #cbd5e1;
+            stroke-width: 2;
+            transition: stroke 0.2s, stroke-width 0.2s;
+            pointer-events: none; /* Let the group capture events */
+        }
+        
+        .connection-line.forward-active { stroke: #3b82f6; stroke-width: 4; }
+        .connection-line.backward-active { stroke: #ef4444; stroke-width: 4; }
+        
+        /* New Hover Style */
+        .connection-line.hover-line {
+            stroke: #8b5cf6 !important; /* Violet */
+            stroke-width: 5 !important;
+            stroke-opacity: 1 !important;
+        }
+
+        .signal { fill: #3b82f6; opacity: 0; pointer-events: none; }
+        .signal-back { fill: #ef4444; opacity: 0; pointer-events: none; }
+
+        /* --- Tooltip --- */
+        #connection-tooltip {
+            position: fixed;
+            top: 0; left: 0;
+            background: rgba(15, 23, 42, 0.95);
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            z-index: 2000;
+            display: none;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            border: 1px solid #334155;
+            backdrop-filter: blur(4px);
+            min-width: 160px;
+        }
+        .tooltip-val { font-family: monospace; color: #a5b4fc; }
+        .tooltip-res { font-family: monospace; color: #4ade80; font-weight: bold; }
+
+        /* --- Neurons --- */
+        .layer {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 50px;
+            z-index: 10;
+            position: relative;
+            flex: 1;
+            pointer-events: none; /* Let SVG behind capture events if needed */
+        }
+        .layer > * { pointer-events: auto; } /* Re-enable pointer events for neurons */
+
+        .neuron {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #cbd5e1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            position: relative;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            z-index: 20;
+            cursor: help; /* Indique qu'on peut survoler */
+        }
+
+        .neuron:hover {
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2);
+            z-index: 50;
+        }
+
+        .neuron.input-neuron { border-color: #3b82f6; color: #3b82f6; }
+        .neuron.hidden-neuron { border-color: #f59e0b; color: #f59e0b; }
+        .neuron.output-neuron { border-color: #10b981; color: #10b981; }
+
+        .neuron.active { transform: scale(1.1); background-color: #eff6ff; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+        .neuron.learning { transform: scale(1.1); border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); }
+
+        /* --- Labels --- */
+        .layer-label {
+            position: absolute;
+            top: -40px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            text-align: center;
+            width: 100%;
+        }
+
+        .weight-label {
+            font-size: 10px;
+            fill: #64748b;
+            background: white;
+            font-weight: bold;
+            transition: fill 0.2s;
+            pointer-events: none;
+        }
+        .weight-label.updated { fill: #ef4444; font-size: 12px; }
+
+        /* --- Targets Column --- */
+        .target-col {
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+            margin-left: 20px;
+            justify-content: center;
+        }
+        .target-box {
+            width: 50px;
+            height: 50px;
+            border: 2px dashed #94a3b8;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #475569;
+            font-weight: bold;
+            background: #f8fafc;
+            position: relative;
+        }
+        .target-label {
+            position: absolute;
+            right: -60px;
+            font-size: 0.75rem;
+            color: #64748b;
+            width: 50px;
+        }
+
+        /* --- Math Bubbles --- */
+        .math-bubble {
+            position: absolute;
+            top: -50px;
+            background: #1e293b;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            pointer-events: none;
+            z-index: 30;
+        }
+        .math-bubble.visible { opacity: 1; transform: translateY(0); }
+        .math-bubble.error-bubble { background: #ef4444; top: 55px; }
+
+        /* --- Chart --- */
+        .chart-container {
+            width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            height: 250px;
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        svg.chart { width: 100%; height: 100%; overflow: visible; }
+        .chart-line { fill: none; stroke: #ef4444; stroke-width: 2; vector-effect: non-scaling-stroke; }
+        .chart-grid { stroke: #e2e8f0; stroke-width: 1; }
+        .chart-text { font-size: 10px; fill: #94a3b8; }
+
+        /* --- Controls --- */
+        .controls-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+        }
+        @media (max-width: 768px) { .controls-panel { grid-template-columns: 1fr; } }
+
+        .control-box {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        button {
+            width: 100%;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 8px;
+        }
+        button:hover { background-color: #2563eb; }
+        button:disabled { background-color: #cbd5e1; cursor: not-allowed; }
+        button.secondary { background-color: #64748b; }
+        button.secondary:hover { background-color: #475569; }
+        button.highlight-btn { background-color: #eab308; color: black; margin-top: 10px; }
+        button.highlight-btn:hover { background-color: #ca8a04; }
+        
+        button.step-btn {
+            background-color: #8b5cf6; /* Violet pour différencier */
+            border-bottom: 4px solid #7c3aed;
+        }
+        button.step-btn:hover { background-color: #7c3aed; }
+
+        /* Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px; 
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+        }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
+        .stat-val { font-family: monospace; font-weight: bold; }
+        
+        .epoch-badge {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: #f1f5f9;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #475569;
+        }
+        
+        .step-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #8b5cf6;
+            background: #f3e8ff;
+            padding: 5px 10px;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .step-indicator.visible { opacity: 1; }
+
+        /* --- Guide / Tutorial Overlay Styles --- */
+        #guide-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 3000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #guide-overlay.active { display: block; opacity: 1; }
+
+        #guide-card {
+            position: absolute;
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            width: 320px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            z-index: 3001;
+            display: none;
+            transition: top 0.3s, left 0.3s;
+        }
+        #guide-card h3 { color: #3b82f6; font-weight: 800; font-size: 1.1rem; margin-bottom: 8px; }
+        #guide-card p { color: #475569; font-size: 0.95rem; line-height: 1.5; margin-bottom: 20px; }
+        .guide-actions { display: flex; justify-content: space-between; }
+        .guide-btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: background 0.2s; border: none; }
+        .guide-next { background: #3b82f6; color: white; }
+        .guide-next:hover { background: #2563eb; }
+        .guide-skip { background: transparent; color: #94a3b8; }
+        .guide-skip:hover { color: #64748b; }
+
+        /* Class to spotlight elements */
+        .spotlight {
+            position: relative;
+            z-index: 3001 !important;
+            background-color: white;
+            box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.2), 0 0 0 5px rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            pointer-events: none; /* Don't interfere with interaction */
+        }
+        /* Specific tweaks for round elements */
+        .neuron.spotlight { border-radius: 50%; }
+
+        /* --- Educational Section Styles --- */
+        .edu-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+        
+        .edu-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #334155;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .edu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .edu-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s;
+        }
+        .edu-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        }
+
+        .edu-card h4 {
+            color: #3b82f6;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .edu-icon {
+            background: #eff6ff;
+            color: #3b82f6;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .edu-card p {
+            font-size: 0.9rem;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Tooltip Element -->
+    <div id="connection-tooltip"></div>
+
+    <!-- Guide Overlay Elements -->
+    <div id="guide-overlay"></div>
+    <div id="guide-card">
+        <h3 id="guide-title">Titre</h3>
+        <p id="guide-desc">Description...</p>
+        <div class="guide-actions">
+            <button class="guide-skip" onclick="endGuide()" data-i18n="guideSkip">Quitter</button>
+            <button class="guide-next" onclick="nextGuideStep()" data-i18n="guideNext">Suivant →</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        
+        <button onclick="toggleLanguage()" id="langBtn" class="lang-btn">🇬🇧 English</button>
+
+        <!-- Header -->
+        <div class="header-section">
+            <h1 class="text-2xl font-bold text-slate-800" data-i18n="mainTitle">Visualisation de l'Entraînement</h1>
+            <p class="text-slate-600 text-sm mt-1" data-i18n="mainDesc">Survolez les connexions ou les neurones pour voir les calculs.</p>
+            <button onclick="startGuide()" class="highlight-btn" style="width: auto; padding: 8px 20px; display: inline-flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                <span data-i18n="btnGuide">Lancer le Tutoriel</span>
+            </button>
+        </div>
+
+        <div class="content-grid">
+            
+            <!-- Left Panel: Network + Controls + Chart -->
+            <div class="left-panel">
+                
+                <!-- Network Visualization -->
+                <div class="network-wrapper" id="viz-container">
+                    <div class="epoch-badge" id="epochDisplay">Époque: 0</div>
+                    <div class="step-indicator" id="stepDisplay">Phase: --</div>
+                    
+                    <div class="network-container" id="network">
+                        <!-- SVG Lines -->
+                        <svg class="connections-layer" id="connectionsSvg"></svg>
+
+                        <!-- Layer 1: Input -->
+                        <div class="layer" id="layer-input">
+                            <div class="layer-label" data-i18n="layerInput">Entrée</div>
+                            <div class="neuron input-neuron" id="n-i-1">
+                                <span class="neuron-value">1.0</span>
+                            </div>
+                        </div>
+
+                        <!-- Layer 2: Hidden -->
+                        <div class="layer" id="layer-hidden">
+                            <div class="layer-label" data-i18n="layerHidden">Cachée</div>
+                            <div class="neuron hidden-neuron" id="n-h-1"><span class="neuron-value">?</span><div class="math-bubble" id="mb-h-1"></div></div>
+                            <div class="neuron hidden-neuron" id="n-h-2"><span class="neuron-value">?</span><div class="math-bubble" id="mb-h-2"></div></div>
+                            <div class="neuron hidden-neuron" id="n-h-3"><span class="neuron-value">?</span><div class="math-bubble" id="mb-h-3"></div></div>
+                        </div>
+
+                        <!-- Layer 3: Output -->
+                        <div class="layer" id="layer-output">
+                            <div class="layer-label" data-i18n="layerOutput">Sortie</div>
+                            <div class="neuron output-neuron" id="n-o-1">
+                                <span class="neuron-value">?</span>
+                                <div class="math-bubble" id="mb-o-1"></div>
+                                <div class="math-bubble error-bubble" id="eb-o-1"></div>
+                            </div>
+                            <div class="neuron output-neuron" id="n-o-2">
+                                <span class="neuron-value">?</span>
+                                <div class="math-bubble" id="mb-o-2"></div>
+                                <div class="math-bubble error-bubble" id="eb-o-2"></div>
+                            </div>
+                        </div>
+
+                        <!-- Targets -->
+                        <div class="target-col">
+                            <div class="target-box" id="t-1">
+                                1.0
+                                <span class="target-label" data-i18n="targetLabel">Cible 1</span>
+                            </div>
+                            <div class="target-box" id="t-2">
+                                0.0
+                                <span class="target-label" data-i18n="targetLabel">Cible 2</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controls & Stats -->
+                <div class="controls-panel">
+                    <!-- Controls -->
+                    <div class="control-box" id="controls-area">
+                        <h3 class="font-bold text-slate-700 mb-4" data-i18n="controlsTitle">Commandes</h3>
+                        
+                        <!-- Speed Slider -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-bold text-slate-600 mb-2" data-i18n="speedLabel">Vitesse d'animation</label>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs text-slate-500 font-bold" data-i18n="speedFast">RAPIDE</span>
+                                <input type="range" id="speedSlider" min="20" max="1000" step="20" value="200" 
+                                       oninput="updateSpeedLabel(this.value)"
+                                       class="flex-1">
+                                <span class="text-xs text-slate-500 font-bold" data-i18n="speedSlow">LENT</span>
+                            </div>
+                            <div class="text-center text-xs text-slate-400 mt-1"><span data-i18n="durationLabel">Durée :</span> <span id="speedVal">200</span>ms / <span data-i18n="stepLabel">étape</span></div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="nextStep()" id="btnStep" class="step-btn col-span-2" data-i18n="btnStep">
+                                ▶ Étape par Étape
+                            </button>
+                            <button onclick="trainOneEpoch()" id="btnTrain1" data-i18n="btnTrain1">1 Époque</button>
+                            <button onclick="trainMultiEpochs(20)" id="btnTrainMulti" data-i18n="btnTrainMulti">20 Époques</button>
+                        </div>
+                        <button onclick="resetNetwork()" class="secondary mt-2" data-i18n="btnReset">Réinitialiser</button>
+                    </div>
+
+                    <!-- Stats Only -->
+                    <div class="control-box">
+                        <h3 class="font-bold text-slate-700 mb-4" data-i18n="statsTitle">Statistiques</h3>
+                        <div class="stat-row">
+                            <span data-i18n="lossLabel">Erreur Totale (Loss):</span>
+                            <span class="stat-val text-red-500" id="lossDisplay">--</span>
+                        </div>
+                        <div class="stat-row">
+                            <span data-i18n="lrLabel">Taux d'apprentissage:</span>
+                            <span class="stat-val text-blue-600">0.2</span>
+                        </div>
+                        <div class="mt-4 text-xs text-slate-500" data-i18n="statsDesc">
+                            Regardez le panneau de droite pour le détail des calculs. <br><br>
+                            L'erreur diminue quand la sortie se rapproche de la cible.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loss Chart -->
+                <div class="chart-container" id="chart-area">
+                    <h3 class="text-sm font-bold text-slate-500 absolute top-2 left-4" data-i18n="chartTitle">Courbe d'apprentissage (Diminution de l'erreur)</h3>
+                    <svg class="chart" id="lossChart" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <!-- Grid -->
+                        <line x1="0" y1="100" x2="100" y2="100" class="chart-grid"></line>
+                        <line x1="0" y1="0" x2="0" y2="100" class="chart-grid"></line>
+                        <!-- Path -->
+                        <polyline points="" class="chart-line" id="lossPolyline"></polyline>
+                    </svg>
+                </div>
+
+            </div>
+
+            <!-- Right Panel: Detailed Logs -->
+            <div class="right-panel" id="log-panel">
+                <div class="log-panel-title" data-i18n="logTitle">Journal des Calculs</div>
+                <div class="log-box" id="logBox">
+                    <div class="log-entry">
+                        <span class="log-title" data-i18n="logReady">Système Prêt.</span>
+                        <span class="math-expr" data-i18n="logReadyDesc">En mode "Lent" ou "Étape par Étape", les détails mathématiques complets s'afficheront ici.</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- NEW: Educational Section -->
+        <div class="edu-section">
+            <h2 class="edu-title" data-i18n="eduTitle">Comprendre le Réseau de Neurones</h2>
+            <div class="edu-grid">
+                <!-- Card 1 -->
+                <div class="edu-card">
+                    <h4 data-i18n="edu1Title"><div class="edu-icon">1</div> Le Neurone Artificiel</h4>
+                    <p data-i18n="edu1Desc">Un neurone est une unité de calcul simple. Il reçoit des nombres en entrée, les multiplie par des <strong>poids</strong> (l'importance de la connexion), fait la somme de tout ça, et envoie le résultat au neurone suivant.</p>
+                </div>
+                <!-- Card 2 -->
+                <div class="edu-card">
+                    <h4 data-i18n="edu2Title"><div class="edu-icon">2</div> La Propagation (Avant)</h4>
+                    <p data-i18n="edu2Desc">C'est le moment où le réseau "réfléchit". L'information part de l'entrée, traverse les couches cachées en étant transformée par les poids, et arrive à la sortie pour donner une prédiction (le résultat).</p>
+                </div>
+                <!-- Card 3 -->
+                <div class="edu-card">
+                    <h4 data-i18n="edu3Title"><div class="edu-icon">3</div> L'Erreur (Loss)</h4>
+                    <p data-i18n="edu3Desc">Une fois la prédiction faite, on la compare avec la réponse attendue (la cible). La différence s'appelle l'<strong>Erreur</strong>. Plus l'erreur est petite, meilleur est le réseau.</p>
+                </div>
+                <!-- Card 4 -->
+                <div class="edu-card">
+                    <h4 data-i18n="edu4Title"><div class="edu-icon">4</div> La Rétropropagation (Apprentissage)</h4>
+                    <p data-i18n="edu4Desc">C'est la magie ! Le réseau regarde son erreur et remonte en arrière pour ajuster légèrement chaque poids. Il renforce les connexions qui ont aidé et affaiblit celles qui se sont trompées.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- TRANSLATIONS ---
+        const TRANSLATIONS = {
+            fr: {
+                mainTitle: "Visualisation de l'Entraînement",
+                mainDesc: "Survolez les connexions ou les neurones pour voir les calculs.",
+                btnGuide: "Lancer le Tutoriel",
+                layerInput: "Entrée",
+                layerHidden: "Cachée",
+                layerOutput: "Sortie",
+                targetLabel: "Cible",
+                controlsTitle: "Commandes",
+                speedLabel: "Vitesse d'animation",
+                speedFast: "RAPIDE",
+                speedSlow: "LENT",
+                durationLabel: "Durée :",
+                stepLabel: "étape",
+                btnStep: "▶ Étape par Étape",
+                btnTrain1: "1 Époque",
+                btnTrainMulti: "20 Époques",
+                btnReset: "Réinitialiser",
+                statsTitle: "Statistiques",
+                lossLabel: "Erreur Totale (Loss):",
+                lrLabel: "Taux d'apprentissage:",
+                statsDesc: "Regardez le panneau de droite pour le détail des calculs. <br><br>L'erreur diminue quand la sortie se rapproche de la cible.",
+                chartTitle: "Courbe d'apprentissage (Diminution de l'erreur)",
+                logTitle: "Journal des Calculs",
+                logReady: "Système Prêt.",
+                logReadyDesc: "En mode 'Lent' ou 'Étape par Étape', les détails mathématiques complets s'afficheront ici.",
+                eduTitle: "Comprendre le Réseau de Neurones",
+                edu1Title: '<div class="edu-icon">1</div> Le Neurone Artificiel',
+                edu1Desc: "Un neurone est une unité de calcul simple. Il reçoit des nombres en entrée, les multiplie par des <strong>poids</strong> (l'importance de la connexion), fait la somme de tout ça, et envoie le résultat au neurone suivant.",
+                edu2Title: '<div class="edu-icon">2</div> La Propagation (Avant)',
+                edu2Desc: "C'est le moment où le réseau 'réfléchit'. L'information part de l'entrée, traverse les couches cachées en étant transformée par les poids, et arrive à la sortie pour donner une prédiction (le résultat).",
+                edu3Title: '<div class="edu-icon">3</div> L\'Erreur (Loss)',
+                edu3Desc: "Une fois la prédiction faite, on la compare avec la réponse attendue (la cible). La différence s'appelle l'<strong>Erreur</strong>. Plus l'erreur est petite, meilleur est le réseau.",
+                edu4Title: '<div class="edu-icon">4</div> La Rétropropagation (Apprentissage)',
+                edu4Desc: "C'est la magie ! Le réseau regarde son erreur et remonte en arrière pour ajuster légèrement chaque poids. Il renforce les connexions qui ont aidé et affaiblit celles qui se sont trompées.",
+                guideSkip: "Quitter",
+                guideNext: "Suivant →",
+                guideSteps: [
+                    { title: "Couche d'Entrée", desc: "C'est ici que l'information entre dans le réseau. Dans notre cas, nous avons un seul neurone avec la valeur fixe de 1.0." },
+                    { title: "Poids (Connexions)", desc: "Les lignes représentent les synapses. L'épaisseur indique le 'poids' (l'importance). Le signal est multiplié par ce poids en transitant." },
+                    { title: "Couche Cachée", desc: "Ces neurones intermédiaires reçoivent la somme des signaux pondérés. Ils traitent l'information (ici, une simple multiplication pour l'exemple) pour extraire des caractéristiques." },
+                    { title: "Couche de Sortie", desc: "Le résultat final du réseau. Chaque neurone produit une prédiction basée sur ce qu'il a reçu de la couche cachée." },
+                    { title: "Cibles (Objectifs)", desc: "La 'Vérité Terrain'. Ce sont les valeurs que le réseau *devrait* trouver. L'objectif est que la Sortie soit égale à la Cible." },
+                    { title: "Contrôles", desc: "Lancez l'entraînement ici. Le mode 'Étape par Étape' est idéal pour comprendre le processus mathématique en détail." },
+                    { title: "Journal Mathématique", desc: "Ici, vous verrez chaque formule utilisée en temps réel. Utile pour comprendre la Rétropropagation (la correction des erreurs)." }
+                ],
+                // Logs & Tooltips dynamic parts
+                logPhase1: "Propagation: Entrée → Cachée",
+                logPhase2: "Propagation: Cachée → Sortie",
+                logPhase3: "Calcul de l'Erreur",
+                logPhase4: "Correction (Backprop): Sortie → Cachée",
+                logPhase5: "Correction (Backprop): Cachée → Entrée",
+                logCalcHidden: "Calcul Couche Cachée (Input × Poids)",
+                logCalcOut: "Calcul Couche Sortie (Somme Pondérée)",
+                logCalcErr: "Calcul de l'Erreur (Cible - Sortie)",
+                logUpdateOut: "Mise à jour Poids (Sortie → Cachée)",
+                logUpdateIn: "Mise à jour Poids (Cachée → Entrée)",
+                logEpochStart: "--- DÉBUT ÉPOQUE",
+                logEpochEnd: "Fin Époque",
+                logErrorTotal: "Erreur Totale:",
+                tooltipConn: "Connexion",
+                tooltipVal: "Val:",
+                tooltipWeight: "Poids:",
+                tooltipRes: "Rés:",
+                tooltipInputNeuron: "Neurone d'Entrée",
+                tooltipConst: "Valeur constante:",
+                tooltipHiddenNeuron: "Neurone Caché",
+                tooltipFormulaHidden: "Formule: Entrée × Poids",
+                tooltipOutputNeuron: "Neurone de Sortie",
+                tooltipSumCalc: "Calcul de la somme:",
+                tooltipCurrVal: "Valeur Actuelle:",
+                tooltipTarget: "Objectif (Cible):",
+                tooltipError: "Erreur:",
+                epochLabel: "Époque:",
+                targetReached: "🎯 OBJECTIF ATTEINT ! (Erreur < 0.01)"
+            },
+            en: {
+                mainTitle: "Neural Network Training Visualization",
+                mainDesc: "Hover over connections or neurons to see the calculations.",
+                btnGuide: "Start Tutorial",
+                layerInput: "Input",
+                layerHidden: "Hidden",
+                layerOutput: "Output",
+                targetLabel: "Target",
+                controlsTitle: "Controls",
+                speedLabel: "Animation Speed",
+                speedFast: "FAST",
+                speedSlow: "SLOW",
+                durationLabel: "Duration:",
+                stepLabel: "step",
+                btnStep: "▶ Step by Step",
+                btnTrain1: "1 Epoch",
+                btnTrainMulti: "20 Epochs",
+                btnReset: "Reset",
+                statsTitle: "Statistics",
+                lossLabel: "Total Loss (Error):",
+                lrLabel: "Learning Rate:",
+                statsDesc: "Check the right panel for detailed calculations. <br><br>The error decreases as the output gets closer to the target.",
+                chartTitle: "Learning Curve (Error Decrease)",
+                logTitle: "Calculation Log",
+                logReady: "System Ready.",
+                logReadyDesc: "In 'Slow' or 'Step by Step' mode, detailed mathematical operations will appear here.",
+                eduTitle: "Understanding Neural Networks",
+                edu1Title: '<div class="edu-icon">1</div> Artificial Neuron',
+                edu1Desc: "A neuron is a simple calculation unit. It receives input numbers, multiplies them by <strong>weights</strong> (the connection importance), sums it all up, and sends the result to the next neuron.",
+                edu2Title: '<div class="edu-icon">2</div> Forward Propagation',
+                edu2Desc: "This is when the network 'thinks'. Information starts at the input, travels through hidden layers being transformed by weights, and reaches the output to give a prediction.",
+                edu3Title: '<div class="edu-icon">3</div> The Loss (Error)',
+                edu3Desc: "Once the prediction is made, we compare it with the expected answer (the target). The difference is called the <strong>Error</strong>. The smaller the error, the better the network.",
+                edu4Title: '<div class="edu-icon">4</div> Backpropagation (Learning)',
+                edu4Desc: "This is the magic! The network looks at its error and goes backwards to slightly adjust every weight. It strengthens connections that helped and weakens those that were wrong.",
+                guideSkip: "Skip",
+                guideNext: "Next →",
+                guideSteps: [
+                    { title: "Input Layer", desc: "This is where information enters the network. In our case, we have a single neuron with a fixed value of 1.0." },
+                    { title: "Weights (Connections)", desc: "Lines represent synapses. Thickness indicates the 'weight' (importance). The signal is multiplied by this weight as it travels." },
+                    { title: "Hidden Layer", desc: "These intermediate neurons receive the sum of weighted signals. They process information (here, a simple multiplication for the example) to extract features." },
+                    { title: "Output Layer", desc: "The final result of the network. Each neuron produces a prediction based on what it received from the hidden layer." },
+                    { title: "Targets (Goals)", desc: "The 'Ground Truth'. These are the values the network *should* find. The goal is for Output to equal Target." },
+                    { title: "Controls", desc: "Start training here. 'Step by Step' mode is ideal for understanding the mathematical process in detail." },
+                    { title: "Math Log", desc: "Here you will see every formula used in real-time. Useful for understanding Backpropagation (error correction)." }
+                ],
+                logPhase1: "Propagation: Input → Hidden",
+                logPhase2: "Propagation: Hidden → Output",
+                logPhase3: "Error Calculation",
+                logPhase4: "Correction (Backprop): Output → Hidden",
+                logPhase5: "Correction (Backprop): Hidden → Input",
+                logCalcHidden: "Calc Hidden Layer (Input × Weight)",
+                logCalcOut: "Calc Output Layer (Weighted Sum)",
+                logCalcErr: "Error Calculation (Target - Output)",
+                logUpdateOut: "Weight Update (Output → Hidden)",
+                logUpdateIn: "Weight Update (Hidden → Input)",
+                logEpochStart: "--- START EPOCH",
+                logEpochEnd: "End Epoch",
+                logErrorTotal: "Total Error:",
+                tooltipConn: "Connection",
+                tooltipVal: "Val:",
+                tooltipWeight: "Weight:",
+                tooltipRes: "Res:",
+                tooltipInputNeuron: "Input Neuron",
+                tooltipConst: "Constant Value:",
+                tooltipHiddenNeuron: "Hidden Neuron",
+                tooltipFormulaHidden: "Formula: Input × Weight",
+                tooltipOutputNeuron: "Output Neuron",
+                tooltipSumCalc: "Sum Calculation:",
+                tooltipCurrVal: "Current Value:",
+                tooltipTarget: "Goal (Target):",
+                tooltipError: "Error:",
+                epochLabel: "Epoch:",
+                targetReached: "🎯 GOAL REACHED! (Error < 0.01)"
+            }
+        };
+
+        let currentLang = 'fr';
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'fr' ? 'en' : 'fr';
+            document.getElementById('langBtn').textContent = currentLang === 'fr' ? '🇬🇧 English' : '🇫🇷 Français';
+            applyLanguage();
+        }
+
+        function t(key) {
+            return TRANSLATIONS[currentLang][key] || key;
+        }
+
+        function applyLanguage() {
+            // Update static elements
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (TRANSLATIONS[currentLang][key]) {
+                    el.innerHTML = TRANSLATIONS[currentLang][key]; // innerHTML to handle formatting like <strong>
+                }
+            });
+            // Update guide array ref
+            guideSteps.length = 0;
+            const steps = TRANSLATIONS[currentLang].guideSteps;
+            // Re-populate global guideSteps but keep elId logic which is static
+            const originalIds = ['layer-input', 'network', 'layer-hidden', 'layer-output', '.target-col', 'controls-area', 'log-panel'];
+            steps.forEach((s, i) => {
+                guideSteps.push({ elId: originalIds[i], title: s.title, desc: s.desc });
+            });
+            // Update UI dynamic texts
+            document.getElementById('epochDisplay').textContent = `${t('epochLabel')} ${epoch}`;
+        }
+
+        // --- Configuration du Réseau ---
+        const TARGETS = { 'n-o-1': 1.0, 'n-o-2': 0.0 };
+        const LEARNING_RATE = 0.2;
+        const INPUT_VAL = 1.0;
+        const hiddenIds = ['n-h-1', 'n-h-2', 'n-h-3'];
+        const outputIds = ['n-o-1', 'n-o-2'];
+        
+        let weights = {
+            'i-1_h-1': 0.5, 'i-1_h-2': -0.8, 'i-1_h-3': 1.2,
+            'h-1_o-1': 0.2, 'h-2_o-1': 0.5, 'h-3_o-1': -0.5,
+            'h-1_o-2': 0.9, 'h-2_o-2': -0.1, 'h-3_o-2': 0.4
+        };
+        const initialWeights = {...weights};
+
+        // --- Variables d'état ---
+        let epoch = 0;
+        let isRunning = false;
+        let lossHistory = [];
+        
+        // État pour le mode étape par étape
+        let stepPhase = 0; // 0: Start, 1: Hidden, 2: Output, 3: Error, 4: BackOut, 5: BackIn
+        let epochData = {
+            hResults: {},
+            oResults: {},
+            outputErrors: {},
+            totalError: 0
+        };
+        
+        // --- Références DOM ---
+        const svg = document.getElementById('connectionsSvg');
+        const logBox = document.getElementById('logBox');
+        const lossDisplay = document.getElementById('lossDisplay');
+        const epochDisplay = document.getElementById('epochDisplay');
+        const stepDisplay = document.getElementById('stepDisplay');
+        const lossPolyline = document.getElementById('lossPolyline');
+        const slider = document.getElementById('speedSlider');
+        const speedValLabel = document.getElementById('speedVal');
+        const tooltip = document.getElementById('connection-tooltip');
+
+        // --- Guide Variables ---
+        let guideStepIndex = 0;
+        const guideSteps = []; // Populated via applyLanguage
+
+        // --- Guide Logic ---
+        function startGuide() {
+            guideStepIndex = 0;
+            document.getElementById('guide-overlay').classList.add('active');
+            showGuideStep();
+        }
+
+        function endGuide() {
+            document.getElementById('guide-overlay').classList.remove('active');
+            document.getElementById('guide-card').style.display = 'none';
+            // Remove highlighting
+            document.querySelectorAll('.spotlight').forEach(el => el.classList.remove('spotlight'));
+        }
+
+        function showGuideStep() {
+            // Cleanup previous
+            document.querySelectorAll('.spotlight').forEach(el => el.classList.remove('spotlight'));
+            
+            const step = guideSteps[guideStepIndex];
+            const el = step.elId.startsWith('.') 
+                ? document.querySelector(step.elId) 
+                : document.getElementById(step.elId);
+            
+            if (el) {
+                el.classList.add('spotlight');
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Position Card
+                const rect = el.getBoundingClientRect();
+                const card = document.getElementById('guide-card');
+                const title = document.getElementById('guide-title');
+                const desc = document.getElementById('guide-desc');
+                
+                title.textContent = step.title;
+                desc.textContent = step.desc;
+                card.style.display = 'block';
+                
+                // Smart positioning
+                const cardWidth = 320;
+                let top = rect.top + window.scrollY;
+                let left = rect.right + 20;
+                
+                if (left + cardWidth > window.innerWidth) {
+                    left = rect.left - cardWidth - 20;
+                }
+                if (left < 0) {
+                    left = 10;
+                    top = rect.bottom + 20;
+                }
+
+                card.style.top = `${top}px`;
+                card.style.left = `${left}px`;
+            }
+        }
+
+        function nextGuideStep() {
+            guideStepIndex++;
+            if (guideStepIndex >= guideSteps.length) {
+                endGuide();
+            } else {
+                showGuideStep();
+            }
+        }
+
+        // --- Helpers ---
+        function log(title, detailsHtml = null) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            
+            let html = `<span class="log-title">> ${title}</span>`;
+            if (detailsHtml) {
+                html += detailsHtml;
+            }
+            
+            entry.innerHTML = html;
+            logBox.prepend(entry);
+            
+            if(logBox.children.length > 50) {
+                logBox.lastElementChild.remove();
+            }
+        }
+
+        function updateSpeedLabel(val) { speedValLabel.textContent = val; }
+        function getSpeed() { return parseInt(slider.value); }
+
+        function getCenter(elId) {
+            const el = document.getElementById(elId);
+            const container = document.getElementById('network').getBoundingClientRect();
+            const rect = el.getBoundingClientRect();
+            return {
+                x: rect.left + rect.width / 2 - container.left,
+                y: rect.top + rect.height / 2 - container.top
+            };
+        }
+
+        function updateChart() {
+            if (lossHistory.length < 2) return;
+            const maxLoss = Math.max(...lossHistory, 1.0);
+            const width = 100;
+            const height = 100;
+            let points = "";
+            lossHistory.forEach((loss, index) => {
+                const x = (index / (lossHistory.length - 1)) * width;
+                const y = height - ((loss / maxLoss) * height);
+                points += `${x},${y} `;
+            });
+            lossPolyline.setAttribute('points', points);
+        }
+
+        function setStepLabel(text) {
+            stepDisplay.textContent = text;
+            stepDisplay.classList.add('visible');
+        }
+        
+        // --- Tooltip Logic ---
+        function moveTooltip(e) {
+            const x = e.clientX + 15;
+            const y = e.clientY + 15;
+            tooltip.style.transform = `translate(${x}px, ${y}px)`;
+        }
+
+        // --- Helper Calculations for Hover ---
+        function calculateHiddenVal(hId) {
+             const wKey = `i-1_${hId.replace('n-','')}`;
+             return INPUT_VAL * weights[wKey];
+        }
+
+        function calculateOutputVal(oId) {
+             let sum = 0;
+             hiddenIds.forEach(hId => {
+                 const hVal = calculateHiddenVal(hId);
+                 const wKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                 sum += hVal * weights[wKey];
+             });
+             return sum;
+        }
+
+        // --- Setup Neuron Hover ---
+        function setupNeuronHover() {
+            document.querySelectorAll('.neuron').forEach(neuron => {
+                neuron.addEventListener('mouseenter', (e) => {
+                    if (document.getElementById('guide-overlay').classList.contains('active')) return;
+
+                    const id = neuron.id;
+                    let title = "Neurone";
+                    let content = "";
+
+                    if (id.includes('n-i')) {
+                        title = t('tooltipInputNeuron');
+                        content = `<div>${t('tooltipConst')} <span class="tooltip-res">${INPUT_VAL.toFixed(1)}</span></div>`;
+                    } 
+                    else if (id.includes('n-h')) {
+                        title = t('tooltipHiddenNeuron');
+                        const wKey = `i-1_${id.replace('n-','')}`;
+                        const w = weights[wKey];
+                        const val = INPUT_VAL * w;
+                        
+                        content = `
+                            <div class="text-xs text-slate-400 mb-1">${t('tooltipFormulaHidden')}</div>
+                            <div>${t('layerInput')}: <span class="tooltip-val">${INPUT_VAL.toFixed(1)}</span></div>
+                            <div>${t('tooltipWeight')}: <span class="tooltip-val">${w.toFixed(2)}</span></div>
+                            <div class="mt-1 pt-1 border-t border-slate-700">${t('tooltipRes')} <span class="tooltip-res">${val.toFixed(2)}</span></div>
+                        `;
+                    } 
+                    else if (id.includes('n-o')) {
+                        title = t('tooltipOutputNeuron');
+                        const val = calculateOutputVal(id);
+                        const target = TARGETS[id];
+                        const error = target - val;
+                        
+                        let details = [];
+                        hiddenIds.forEach((hId, idx) => {
+                            const hVal = calculateHiddenVal(hId);
+                            const wKey = `${hId.replace('n-','')}_${id.replace('n-','')}`;
+                            const w = weights[wKey];
+                            details.push(`(${hVal.toFixed(2)}×${w.toFixed(2)})`);
+                        });
+                        const detailStr = details.join(' + ');
+                        
+                        content = `
+                            <div class="text-xs text-slate-400 mb-1">${t('tooltipSumCalc')}</div>
+                            <div class="text-xs text-slate-300 font-mono mb-2" style="max-width:200px; white-space:normal; line-height:1.4;">${detailStr}</div>
+                            <div>${t('tooltipCurrVal')} <span class="tooltip-res">${val.toFixed(2)}</span></div>
+                            <div class="mt-1 pt-1 border-t border-slate-700">${t('tooltipTarget')} <span class="text-blue-400 font-bold">${target.toFixed(1)}</span></div>
+                            <div>${t('tooltipError')} <span class="text-red-400 font-bold">${error.toFixed(2)}</span></div>
+                        `;
+                    }
+
+                    tooltip.innerHTML = `
+                        <div class="font-bold border-b border-slate-600 pb-1 mb-1 text-slate-300">${title} <span class="text-xs text-slate-500">(${id})</span></div>
+                        ${content}
+                    `;
+                    tooltip.style.display = 'block';
+                    moveTooltip(e);
+                });
+
+                neuron.addEventListener('mousemove', moveTooltip);
+                neuron.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
+            });
+        }
+
+        // --- Dessin ---
+        function drawConnections(highlightUpdated = false) {
+            svg.innerHTML = '';
+            
+            const layers = [['n-i-1'], hiddenIds, outputIds];
+
+            for (let i = 0; i < layers.length - 1; i++) {
+                const currentLayer = layers[i];
+                const nextLayer = layers[i+1];
+
+                currentLayer.forEach(srcId => {
+                    nextLayer.forEach(tgtId => {
+                        const wKey = `${srcId.replace('n-','')}_${tgtId.replace('n-','')}`;
+                        const weightVal = weights[wKey];
+                        const p1 = getCenter(srcId);
+                        const p2 = getCenter(tgtId);
+
+                        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                        g.setAttribute('class', 'connection-group');
+                        g.style.cursor = 'pointer';
+
+                        const hitLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        hitLine.setAttribute("x1", p1.x);
+                        hitLine.setAttribute("y1", p1.y);
+                        hitLine.setAttribute("x2", p2.x);
+                        hitLine.setAttribute("y2", p2.y);
+                        hitLine.setAttribute("stroke", "transparent");
+                        hitLine.setAttribute("stroke-width", "20"); 
+                        
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("x1", p1.x);
+                        line.setAttribute("y1", p1.y);
+                        line.setAttribute("x2", p2.x);
+                        line.setAttribute("y2", p2.y);
+                        line.setAttribute("class", "connection-line");
+                        line.setAttribute("id", `line-${wKey}`);
+                        line.style.strokeWidth = Math.max(1, Math.abs(weightVal) * 3);
+                        line.style.strokeOpacity = 0.3;
+                        if(weightVal < 0) line.style.stroke = "#94a3b8"; 
+
+                        const sigF = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        sigF.setAttribute("r", "4");
+                        sigF.setAttribute("cx", p1.x);
+                        sigF.setAttribute("cy", p1.y);
+                        sigF.setAttribute("class", "signal");
+                        sigF.setAttribute("id", `sig-f-${wKey}`);
+
+                        const sigB = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        sigB.setAttribute("r", "4");
+                        sigB.setAttribute("cx", p2.x); 
+                        sigB.setAttribute("cy", p2.y);
+                        sigB.setAttribute("class", "signal-back");
+                        sigB.setAttribute("id", `sig-b-${wKey}`);
+
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.setAttribute("x", (p1.x * 0.3 + p2.x * 0.7)); 
+                        text.setAttribute("y", (p1.y * 0.3 + p2.y * 0.7));
+                        text.setAttribute("class", "weight-label");
+                        text.setAttribute("text-anchor", "middle");
+                        text.setAttribute("id", `txt-${wKey}`);
+                        text.textContent = weightVal.toFixed(2);
+                        if(highlightUpdated) text.classList.add('updated');
+
+                        g.addEventListener('mouseenter', (e) => {
+                            if (document.getElementById('guide-overlay').classList.contains('active')) return;
+
+                            line.classList.add('hover-line');
+                            
+                            let inputVal = 0;
+                            let srcName = t('layerInput');
+                            
+                            if (srcId === 'n-i-1') {
+                                inputVal = INPUT_VAL;
+                            } else {
+                                const inputWKey = `i-1_${srcId.replace('n-','')}`;
+                                inputVal = INPUT_VAL * weights[inputWKey];
+                                srcName = t('layerHidden');
+                            }
+                            
+                            const result = inputVal * weightVal;
+                            
+                            tooltip.innerHTML = `
+                                <div class="font-bold border-b border-slate-600 pb-1 mb-1 text-slate-300">${t('tooltipConn')}</div>
+                                <div class="text-xs text-slate-400 mb-1">${srcName} → Dest</div>
+                                <div>${t('tooltipVal')} <span class="tooltip-val">${inputVal.toFixed(2)}</span></div>
+                                <div>${t('tooltipWeight')} <span class="tooltip-val">${weightVal.toFixed(2)}</span></div>
+                                <div class="mt-1 pt-1 border-t border-slate-700">${t('tooltipRes')} <span class="tooltip-res">${result.toFixed(2)}</span></div>
+                            `;
+                            tooltip.style.display = 'block';
+                            moveTooltip(e);
+                        });
+                        
+                        g.addEventListener('mousemove', (e) => moveTooltip(e));
+                        
+                        g.addEventListener('mouseleave', () => {
+                            line.classList.remove('hover-line');
+                            tooltip.style.display = 'none';
+                        });
+
+                        g.appendChild(hitLine); 
+                        g.appendChild(line);
+                        g.appendChild(text);
+                        g.appendChild(sigF);
+                        g.appendChild(sigB);
+                        svg.appendChild(g);
+                    });
+                });
+            }
+        }
+
+        function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        async function animatePath(objId, lineId, startId, endId, colorClass, duration) {
+            return new Promise(resolve => {
+                const circle = document.getElementById(objId);
+                const line = document.getElementById(lineId);
+                const pStart = getCenter(startId);
+                const pEnd = getCenter(endId);
+
+                line.classList.add(colorClass);
+                circle.style.opacity = 1;
+
+                const startTime = performance.now();
+                function step(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const x = pStart.x + (pEnd.x - pStart.x) * progress;
+                    const y = pStart.y + (pEnd.y - pStart.y) * progress;
+                    circle.setAttribute('cx', x);
+                    circle.setAttribute('cy', y);
+
+                    if (progress < 1) requestAnimationFrame(step);
+                    else {
+                        circle.style.opacity = 0;
+                        line.classList.remove(colorClass);
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        // --- PHASES DU RÉSEAU ---
+
+        async function phase1_InputToHidden(speed, forceLog = false) {
+            setStepLabel(`1. ${t('logPhase1')}`);
+            document.getElementById('n-i-1').classList.add('active');
+            
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            const anims = hiddenIds.map(hId => {
+                const wKey = `i-1_${hId.replace('n-','')}`;
+                return animatePath(`sig-f-${wKey}`, `line-${wKey}`, 'n-i-1', hId, 'forward-active', speed);
+            });
+            await Promise.all(anims);
+
+            hiddenIds.forEach(hId => {
+                const wKey = `i-1_${hId.replace('n-','')}`;
+                const weight = weights[wKey];
+                const val = INPUT_VAL * weight;
+                epochData.hResults[hId] = val;
+                
+                document.getElementById(hId).querySelector('.neuron-value').textContent = val.toFixed(2);
+                document.getElementById(hId).classList.add('active');
+
+                if(detailedLog) {
+                    logDetails += `<span class="math-expr">${hId}: ${INPUT_VAL} × ${weight.toFixed(2)} = <span class="math-hl-res">${val.toFixed(2)}</span></span>`;
+                }
+            });
+            
+            if(detailedLog) log(t('logCalcHidden'), logDetails);
+        }
+
+        async function phase2_HiddenToOutput(speed, forceLog = false) {
+            setStepLabel(`2. ${t('logPhase2')}`);
+            epochData.oResults = { 'n-o-1': 0, 'n-o-2': 0 };
+            
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            const anims = [];
+            hiddenIds.forEach(hId => {
+                outputIds.forEach(oId => {
+                    const wKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                    anims.push(animatePath(`sig-f-${wKey}`, `line-${wKey}`, hId, oId, 'forward-active', speed));
+                    epochData.oResults[oId] += epochData.hResults[hId] * weights[wKey];
+                });
+            });
+            await Promise.all(anims);
+
+            outputIds.forEach(oId => {
+                const val = epochData.oResults[oId];
+                const node = document.getElementById(oId);
+                node.classList.add('active');
+                node.querySelector('.neuron-value').textContent = val.toFixed(2);
+                
+                if(detailedLog) {
+                    logDetails += `<span class="math-expr">${oId}: Σ(h × w) = <span class="math-hl-res">${val.toFixed(2)}</span></span>`;
+                }
+            });
+            if(detailedLog) log(t('logCalcOut'), logDetails);
+        }
+
+        async function phase3_CalcError(speed, forceLog = false) {
+            setStepLabel(`3. ${t('logPhase3')}`);
+            epochData.totalError = 0;
+            epochData.outputErrors = {};
+
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            outputIds.forEach(oId => {
+                const val = epochData.oResults[oId];
+                const target = TARGETS[oId];
+                const error = target - val;
+                epochData.outputErrors[oId] = error;
+                epochData.totalError += Math.abs(error);
+
+                const errBubble = document.getElementById(oId.replace('n-', 'eb-'));
+                errBubble.textContent = `Err: ${error.toFixed(2)}`;
+                errBubble.classList.add('visible');
+
+                if(detailedLog) {
+                    logDetails += `<span class="math-expr">${oId}: ${t('targetLabel')}(${target}) - Out(${val.toFixed(2)}) = <span class="math-hl-var">${error.toFixed(2)}</span></span>`;
+                }
+            });
+
+            lossDisplay.textContent = epochData.totalError.toFixed(4);
+            lossHistory.push(epochData.totalError);
+            updateChart();
+            
+            if(detailedLog) log(t('logCalcErr'), logDetails);
+            if(speed > 100) await wait(speed); 
+        }
+
+        async function phase4_BackOutToHidden(speed, forceLog = false) {
+            setStepLabel(`4. ${t('logPhase4')}`);
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            const anims = [];
+            hiddenIds.forEach(hId => {
+                outputIds.forEach(oId => {
+                    const wKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                    anims.push(animatePath(`sig-b-${wKey}`, `line-${wKey}`, oId, hId, 'backward-active', speed));
+                    
+                    const delta = epochData.outputErrors[oId] * epochData.hResults[hId] * LEARNING_RATE;
+                    weights[wKey] += delta;
+                    
+                    if(detailedLog) { 
+                         logDetails += `<span class="math-expr">Δw (${hId}→${oId}) = η(${LEARNING_RATE}) × Err(${epochData.outputErrors[oId].toFixed(2)}) × In(${epochData.hResults[hId].toFixed(2)}) = <span class="math-hl-res">${delta.toFixed(3)}</span></span>`;
+                    }
+                });
+            });
+            if(detailedLog) log(t('logUpdateOut'), logDetails);
+            
+            outputIds.forEach(id => document.getElementById(id).classList.add('learning'));
+            await Promise.all(anims);
+        }
+
+        async function phase5_BackHiddenToInput(speed, forceLog = false) {
+            setStepLabel(`5. ${t('logPhase5')}`);
+            const detailedLog = forceLog || speed > 100;
+            let logDetails = "";
+
+            const anims = [];
+            hiddenIds.forEach(hId => {
+                let hiddenError = 0;
+                outputIds.forEach(oId => {
+                    const wKey = `${hId.replace('n-','')}_${oId.replace('n-','')}`;
+                    hiddenError += epochData.outputErrors[oId] * weights[wKey];
+                });
+
+                const wKey = `i-1_${hId.replace('n-','')}`;
+                anims.push(animatePath(`sig-b-${wKey}`, `line-${wKey}`, hId, 'n-i-1', 'backward-active', speed));
+                
+                const delta = hiddenError * INPUT_VAL * LEARNING_RATE;
+                weights[wKey] += delta;
+                document.getElementById(hId).classList.add('learning');
+                
+                if(detailedLog) {
+                    logDetails += `<span class="math-expr">Δw (In→${hId}): η × ErrProp(${hiddenError.toFixed(2)}) × 1.0 = <span class="math-hl-res">${delta.toFixed(3)}</span></span>`;
+                }
+            });
+            
+            if(detailedLog) log(t('logUpdateIn'), logDetails);
+
+            await Promise.all(anims);
+
+            epoch++;
+            epochDisplay.textContent = `${t('epochLabel')} ${epoch}`;
+            drawConnections(true);
+            
+            document.querySelectorAll('.neuron').forEach(n => n.classList.remove('active', 'learning'));
+            document.querySelectorAll('.math-bubble').forEach(b => b.classList.remove('visible'));
+            setStepLabel(t('logEpochEnd'));
+            if(detailedLog) log(`${t('logEpochEnd')} ${epoch}. ${t('logErrorTotal')} ${epochData.totalError.toFixed(4)}`, "<hr class='border-slate-600 my-2'/>");
+        }
+
+        async function runEpoch(speed, forceLog = false) {
+            stepPhase = 0;
+            const detailedLog = forceLog || speed > 200;
+            if(detailedLog) log(`${t('logEpochStart')} ${epoch+1} ---`);
+            
+            await phase1_InputToHidden(speed, forceLog);
+            await phase2_HiddenToOutput(speed, forceLog);
+            await phase3_CalcError(speed, forceLog);
+            await phase4_BackOutToHidden(speed, forceLog);
+            await phase5_BackHiddenToInput(speed, forceLog);
+            
+            stepDisplay.classList.remove('visible');
+        }
+
+        async function nextStep() {
+            if (isRunning) return;
+            isRunning = true;
+            toggleButtons(true);
+            
+            const speed = getSpeed();
+            const forceLog = true;
+            
+            switch(stepPhase) {
+                case 0:
+                    log(`${t('logEpochStart')} ${epoch+1} ---`);
+                    await phase1_InputToHidden(speed, forceLog);
+                    stepPhase = 1;
+                    break;
+                case 1:
+                    await phase2_HiddenToOutput(speed, forceLog);
+                    stepPhase = 2;
+                    break;
+                case 2:
+                    await phase3_CalcError(speed, forceLog);
+                    stepPhase = 3;
+                    break;
+                case 3:
+                    await phase4_BackOutToHidden(speed, forceLog);
+                    stepPhase = 4;
+                    break;
+                case 4:
+                    await phase5_BackHiddenToInput(speed, forceLog);
+                    stepPhase = 0;
+                    break;
+            }
+            
+            isRunning = false;
+            toggleButtons(false);
+        }
+
+        async function trainOneEpoch() {
+            if (isRunning) return;
+            isRunning = true;
+            toggleButtons(true);
+            await runEpoch(getSpeed());
+            isRunning = false;
+            toggleButtons(false);
+        }
+
+        async function trainMultiEpochs(steps) {
+            if (isRunning) return;
+            isRunning = true;
+            toggleButtons(true);
+            // No translated log here to avoid complexity, relying on internal logs
+            
+            for(let i=0; i<steps; i++) {
+                await runEpoch(getSpeed());
+                const lastLoss = lossHistory[lossHistory.length - 1];
+                if (lastLoss < 0.01) {
+                    log(`<span style="color:#4ade80; font-weight:bold;">${t('targetReached')}</span>`);
+                    break;
+                }
+            }
+
+            isRunning = false;
+            toggleButtons(false);
+        }
+
+        function resetNetwork() {
+            weights = {...initialWeights};
+            epoch = 0;
+            stepPhase = 0;
+            lossHistory = [];
+            lossPolyline.setAttribute('points', '');
+            epochDisplay.textContent = `${t('epochLabel')} 0`;
+            lossDisplay.textContent = '--';
+            stepDisplay.classList.remove('visible');
+            logBox.innerHTML = `<div class="log-entry"><span class="log-title">${t('btnReset')}.</span></div>`;
+            drawConnections();
+            document.querySelectorAll('.neuron-value').forEach(s => s.textContent = '?');
+            document.querySelectorAll('.math-bubble').forEach(b => b.classList.remove('visible'));
+            document.querySelectorAll('.neuron').forEach(n => n.classList.remove('active', 'learning'));
+        }
+
+        function toggleButtons(disabled) {
+            document.getElementById('btnTrain1').disabled = disabled;
+            document.getElementById('btnTrainMulti').disabled = disabled;
+            document.getElementById('btnStep').disabled = disabled;
+        }
+
+        window.addEventListener('load', () => {
+            applyLanguage();
+            drawConnections();
+            setupNeuronHover();
+        });
+        window.addEventListener('resize', () => drawConnections());
+
+    </script>
+</body>
+</html>
