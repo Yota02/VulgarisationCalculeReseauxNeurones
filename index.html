@@ -13,7 +13,7 @@
             overflow-x: hidden;
         }
         .main-container {
-            max-width: 800px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 40px 20px;
             text-align: center;
@@ -31,20 +31,55 @@
             color: #475569;
             cursor: pointer;
             transition: background 0.2s;
+            z-index: 10;
         }
         .lang-btn:hover { background: #94a3b8; color: white; }
-        .nav-btn {
-            display: inline-block;
-            margin: 10px;
-            padding: 15px 30px;
-            background-color: #3b82f6;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            transition: background 0.2s;
+        .card-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-top: 40px;
         }
-        .nav-btn:hover { background-color: #2563eb; }
+        @media (min-width: 768px) {
+            .card-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .card-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            background: #eff6ff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3b82f6;
+        }
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #3b82f6;
+            margin-bottom: 10px;
+        }
+        .card-desc {
+            color: #64748b;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
@@ -52,32 +87,59 @@
 
     <div class="main-container">
         <h1 class="text-3xl font-bold text-slate-800 mb-4" id="mainTitle">Hub des Visualisations de Réseaux de Neurones</h1>
-        <p class="text-slate-600 text-lg mb-8" id="mainDesc">Choisissez une visualisation pour explorer le fonctionnement des réseaux de neurones en temps réel.</p>
+        <p class="text-slate-600 text-lg mb-8" id="mainDesc">Choisissez une visualisation interactive pour découvrir les mécanismes des réseaux de neurones : propagation, erreur et apprentissage.</p>
         
-        <div class="mb-8">
-            <a href="./1sortie.html" class="nav-btn" id="link1">Réseau avec 2 Entrées et 1 Sortie</a>
-            <a href="./2sortie.html" class="nav-btn" id="link2">Réseau avec 1 Entrée et 2 Sorties</a>
+        <div class="card-grid">
+            <a href="./1sortie.html" class="card" aria-label="Accéder à la visualisation avec 2 entrées et 1 sortie">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                </div>
+                <h2 class="card-title" id="card1Title">Réseau avec 2 Entrées et 1 Sortie</h2>
+                <p class="card-desc" id="card1Desc">Explorez un réseau simple avec deux neurones d'entrée et un de sortie. Observez comment les poids s'ajustent pour minimiser l'erreur.</p>
+            </a>
+            
+            <a href="./2sortie.html" class="card" aria-label="Accéder à la visualisation avec 1 entrée et 2 sorties">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"></path>
+                        <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"></path>
+                        <path d="M12 3c0 1-1 3-3 3s-3-2-3-3 1-3 3-3 3 2 3 3"></path>
+                        <path d="M12 21c0-1-1-3-3-3s-3 2-3 3 1 3 3 3 3-2 3-3"></path>
+                    </svg>
+                </div>
+                <h2 class="card-title" id="card2Title">Réseau avec 1 Entrée et 2 Sorties</h2>
+                <p class="card-desc" id="card2Desc">Découvrez un réseau avec une entrée et deux sorties. Suivez les calculs détaillés et l'évolution des poids en temps réel.</p>
+            </a>
         </div>
         
-        <p class="text-slate-500 text-sm" id="footerDesc">Ces visualisations montrent la propagation avant, l'erreur, et la rétropropagation avec des animations interactives.</p>
+        <p class="text-slate-500 text-sm mt-8" id="footerDesc">Utilisez les contrôles pour ajuster la vitesse et explorer étape par étape. Idéal pour l'apprentissage pédagogique.</p>
     </div>
 
     <script>
-        // Traductions simples pour le hub
+        // Traductions améliorées pour le hub
         const TRANSLATIONS = {
             fr: {
                 mainTitle: "Hub des Visualisations de Réseaux de Neurones",
-                mainDesc: "Choisissez une visualisation pour explorer le fonctionnement des réseaux de neurones en temps réel.",
-                link1: "Réseau avec 2 Entrées et 1 Sortie",
-                link2: "Réseau avec 1 Entrée et 2 Sorties",
-                footerDesc: "Ces visualisations montrent la propagation avant, l'erreur, et la rétropropagation avec des animations interactives."
+                mainDesc: "Choisissez une visualisation interactive pour découvrir les mécanismes des réseaux de neurones : propagation, erreur et apprentissage.",
+                card1Title: "Réseau avec 2 Entrées et 1 Sortie",
+                card1Desc: "Explorez un réseau simple avec deux neurones d'entrée et un de sortie. Observez comment les poids s'ajustent pour minimiser l'erreur.",
+                card2Title: "Réseau avec 1 Entrée et 2 Sorties",
+                card2Desc: "Découvrez un réseau avec une entrée et deux sorties. Suivez les calculs détaillés et l'évolution des poids en temps réel.",
+                footerDesc: "Utilisez les contrôles pour ajuster la vitesse et explorer étape par étape. Idéal pour l'apprentissage pédagogique."
             },
             en: {
                 mainTitle: "Neural Network Visualizations Hub",
-                mainDesc: "Choose a visualization to explore neural network operations in real-time.",
-                link1: "Network with 2 Inputs and 1 Output",
-                link2: "Network with 1 Input and 2 Outputs",
-                footerDesc: "These visualizations show forward propagation, error calculation, and backpropagation with interactive animations."
+                mainDesc: "Choose an interactive visualization to discover neural network mechanisms: propagation, error, and learning.",
+                card1Title: "Network with 2 Inputs and 1 Output",
+                card1Desc: "Explore a simple network with two input neurons and one output. Watch how weights adjust to minimize error.",
+                card2Title: "Network with 1 Input and 2 Outputs",
+                card2Desc: "Discover a network with one input and two outputs. Follow detailed calculations and weight evolution in real-time.",
+                footerDesc: "Use controls to adjust speed and explore step-by-step. Perfect for educational learning."
             }
         };
 
@@ -92,8 +154,10 @@
         function applyLanguage() {
             document.getElementById('mainTitle').textContent = TRANSLATIONS[currentLang].mainTitle;
             document.getElementById('mainDesc').textContent = TRANSLATIONS[currentLang].mainDesc;
-            document.getElementById('link1').textContent = TRANSLATIONS[currentLang].link1;
-            document.getElementById('link2').textContent = TRANSLATIONS[currentLang].link2;
+            document.getElementById('card1Title').textContent = TRANSLATIONS[currentLang].card1Title;
+            document.getElementById('card1Desc').textContent = TRANSLATIONS[currentLang].card1Desc;
+            document.getElementById('card2Title').textContent = TRANSLATIONS[currentLang].card2Title;
+            document.getElementById('card2Desc').textContent = TRANSLATIONS[currentLang].card2Desc;
             document.getElementById('footerDesc').textContent = TRANSLATIONS[currentLang].footerDesc;
         }
 
